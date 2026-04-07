@@ -2,59 +2,62 @@ use crate::db::Database;
 use crate::utils::config::Config;
 use crate::utils::error::Result;
 use secrecy::SecretString;
-use serde::{Deserialize, Serialize};
 use tauri::State;
 use tracing::{debug, info};
 
-/// Get current application configuration
+/// Get current application configuration as JSON string
 ///
 /// Note: API keys are excluded for security
 #[tauri::command]
-pub async fn get_config(
+pub fn get_config(
     db: State<'_, Database>,
-) -> Result<ConfigSafe> {
+) -> Result<String> {
     let config = Config::load()?;
     let api_key_exists = db.get_secret("api_key")?.is_some();
 
-    Ok(ConfigSafe {
-        api: ApiConfigSafe {
-            claude_model: config.api.claude_model,
-            request_timeout_secs: config.api.request_timeout_secs,
-            max_retries: config.api.max_retries,
-            api_key_configured: api_key_exists,
+    // Return as JSON string to avoid serialization issues
+    let config_json = serde_json::json!({
+        "api": {
+            "claudeModel": config.api.claude_model,
+            "requestTimeoutSecs": config.api.request_timeout_secs,
+            "maxRetries": config.api.max_retries,
+            "apiKeyConfigured": api_key_exists
         },
-        commands: config.commands.clone(),
-        ui: config.ui.clone(),
-    })
+        "commands": config.commands,
+        "ui": config.ui
+    });
+
+    Ok(config_json.to_string())
 }
 
 /// Update application configuration
 #[tauri::command]
-pub async fn update_config(
-    config: ConfigUpdate,
-) -> Result<()> {
+pub fn update_config(config_update: String) -> Result<()> {
+    let update: ConfigUpdate = serde_json::from_str(&config_update)
+        .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid config update: {e}")))?;
+
     let mut current_config = Config::load()?;
 
     // Update only provided fields
-    if let Some(model) = config.claude_model {
+    if let Some(model) = update.claude_model {
         current_config.api.claude_model = model;
     }
-    if let Some(timeout) = config.request_timeout_secs {
+    if let Some(timeout) = update.request_timeout_secs {
         current_config.api.request_timeout_secs = timeout;
     }
-    if let Some(max_retries) = config.max_retries {
+    if let Some(max_retries) = update.max_retries {
         current_config.api.max_retries = max_retries;
     }
-    if let Some(whitelist) = config.whitelist {
+    if let Some(whitelist) = update.whitelist {
         current_config.commands.whitelist = whitelist;
     }
-    if let Some(blacklist) = config.blacklist {
+    if let Some(blacklist) = update.blacklist {
         current_config.commands.blacklist = blacklist;
     }
-    if let Some(sandbox_path) = config.sandbox_path {
+    if let Some(sandbox_path) = update.sandbox_path {
         current_config.commands.sandbox_path = sandbox_path.into();
     }
-    if let Some(require_confirmation) = config.require_confirmation {
+    if let Some(require_confirmation) = update.require_confirmation {
         current_config.commands.require_confirmation = require_confirmation;
     }
 
@@ -67,7 +70,7 @@ pub async fn update_config(
 ///
 /// The key is stored encrypted in the database
 #[tauri::command]
-pub async fn set_api_key(
+pub fn set_api_key(
     api_key: String,
     db: State<'_, Database>,
 ) -> Result<()> {
@@ -79,7 +82,7 @@ pub async fn set_api_key(
 
 /// Delete Claude API key
 #[tauri::command]
-pub async fn delete_api_key(
+pub fn delete_api_key(
     db: State<'_, Database>,
 ) -> Result<()> {
     db.delete_config("api_key")?;
@@ -87,30 +90,14 @@ pub async fn delete_api_key(
     Ok(())
 }
 
-// Data structures for Tauri commands
+// Data structures for config updates
 
-/// Configuration safe for transmission (no secrets)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigSafe {
-    pub api: ApiConfigSafe,
-    pub commands: crate::utils::config::CommandConfig,
-    pub ui: crate::utils::config::UiConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiConfigSafe {
-    pub claude_model: String,
-    pub request_timeout_secs: u64,
-    pub max_retries: u32,
-    pub api_key_configured: bool,
-}
-
-/// Configuration update (only updatable fields)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct ConfigUpdate {
     pub claude_model: Option<String>,
     pub request_timeout_secs: Option<u64>,
     pub max_retries: Option<u32>,
+    pub timeout_secs: Option<u64>,
     pub whitelist: Option<Vec<String>>,
     pub blacklist: Option<Vec<String>>,
     pub sandbox_path: Option<String>,
@@ -127,6 +114,7 @@ mod tests {
             claude_model: Some("claude-3-opus-20240229".to_string()),
             request_timeout_secs: None,
             max_retries: None,
+            timeout_secs: None,
             whitelist: None,
             blacklist: None,
             sandbox_path: None,

@@ -51,6 +51,20 @@ pub enum AppError {
 /// Result type alias for application errors
 pub type Result<T> = std::result::Result<T, AppError>;
 
+// Implement conversion from rusqlite::Error
+impl From<rusqlite::Error> for AppError {
+    fn from(err: rusqlite::Error) -> Self {
+        AppError::Database(err.to_string())
+    }
+}
+
+// Implement conversion to Tauri's InvokeError
+impl From<AppError> for tauri::ipc::InvokeError {
+    fn from(error: AppError) -> Self {
+        tauri::ipc::InvokeError::from(error.to_string())
+    }
+}
+
 impl AppError {
     /// Check if this is a recoverable error
     #[must_use]

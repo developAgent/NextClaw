@@ -1,0 +1,1 @@
+EOF && ls -la icon.ico 2>&1 || echo "Cannot create icon directly"

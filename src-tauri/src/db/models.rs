@@ -107,8 +107,7 @@ impl CommandExecution {
         }
     }
 
-    #[must_use]
-    pub const fn success(&self) -> bool {
+    pub fn success(&self) -> bool {
         self.exit_code.map_or(false, |code| code == 0)
     }
 }

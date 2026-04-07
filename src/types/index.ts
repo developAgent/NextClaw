@@ -60,6 +60,7 @@ export interface ConfigUpdate {
   claudeModel?: string;
   requestTimeoutSecs?: number;
   maxRetries?: number;
+  timeoutSecs?: number;
   whitelist?: string[];
   blacklist?: string[];
   sandboxPath?: string;

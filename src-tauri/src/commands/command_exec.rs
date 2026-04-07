@@ -70,19 +70,21 @@ pub async fn check_command_confirmation(
 // Helper functions
 
 async fn save_execution(db: &Database, execution: &CommandExecution) -> Result<()> {
-    db.execute(
+    let conn = db.conn();
+    let conn_guard = conn.lock().await;
+    conn_guard.execute(
         r#"
         INSERT INTO command_executions (id, session_id, command, exit_code, stdout, stderr, duration_ms)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         "#,
-        &[
-            &execution.id.to_string(),
-            &execution.session_id.to_string(),
+        rusqlite::params![
+            execution.id.to_string(),
+            execution.session_id.to_string(),
             &execution.command,
-            &execution.exit_code.map(|c| c.to_string()),
-            &execution.stdout.clone(),
-            &execution.stderr.clone(),
-            &execution.duration_ms.map(|d| d.to_string()),
+            execution.exit_code.map(|c| c.to_string()),
+            execution.stdout.as_ref(),
+            execution.stderr.as_ref(),
+            execution.duration_ms.map(|d| d.to_string()),
         ]
     ).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
     Ok(())
@@ -90,7 +92,8 @@ async fn save_execution(db: &Database, execution: &CommandExecution) -> Result<(
 
 async fn get_session_executions(db: &Database, session_id: Uuid) -> Result<Vec<CommandExecution>> {
     let conn = db.conn();
-    let mut stmt = conn.prepare(
+    let conn_guard = conn.lock().await;
+    let mut stmt = conn_guard.prepare(
         "SELECT id, command, exit_code, stdout, stderr, duration_ms, created_at
          FROM command_executions
          WHERE session_id = ?1
@@ -102,13 +105,13 @@ async fn get_session_executions(db: &Database, session_id: Uuid) -> Result<Vec<C
         .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
 
     while let Some(row) = rows.next().map_err(|e| crate::utils::error::AppError::Database(e.to_string()))? {
-        let id: String = row.get(0)?;
-        let command: String = row.get(1)?;
-        let exit_code: Option<String> = row.get(2)?;
-        let stdout: Option<String> = row.get(3)?;
-        let stderr: Option<String> = row.get(4)?;
-        let duration_ms: Option<String> = row.get(5)?;
-        let created_at: String = row.get(6)?;
+        let id: String = row.get(0).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let command: String = row.get(1).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let exit_code: Option<String> = row.get(2).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let stdout: Option<String> = row.get(3).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let stderr: Option<String> = row.get(4).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let duration_ms: Option<String> = row.get(5).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let created_at: String = row.get(6).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
 
         executions.push(CommandExecution {
             id: Uuid::parse_str(&id).unwrap_or_default(),

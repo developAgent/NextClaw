@@ -1,7 +1,6 @@
-use crate::ai::client::Message;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Parsed command from AI response
 #[derive(Debug, Clone, Serialize, Deserialize)]

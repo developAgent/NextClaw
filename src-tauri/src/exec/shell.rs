@@ -1,4 +1,5 @@
 use shlex;
+use std::path::PathBuf;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
@@ -17,8 +18,7 @@ pub struct ExecutionResult {
 }
 
 impl ExecutionResult {
-    #[must_use]
-    pub const fn success(&self) -> bool {
+    pub fn success(&self) -> bool {
         self.exit_code.map_or(false, |code| code == 0) && !self.timed_out
     }
 }
@@ -110,14 +110,21 @@ impl ShellExecutor {
         };
 
         match timeout(self.timeout, output_future).await {
-            Ok(Ok(result)) => Ok(result),
+            Ok(Ok(result)) => Ok(ExecutionResult {
+                exit_code: result.exit_code,
+                stdout: result.stdout,
+                stderr: result.stderr,
+                duration_ms: 0,
+                timed_out: false,
+            }),
             Ok(Err(e)) => Err(e),
             Err(_) => {
                 warn!("Command timed out: {}", command);
-                Ok(ExecutionResultInner {
+                Ok(ExecutionResult {
                     exit_code: None,
                     stdout: String::new(),
                     stderr: format!("Command timed out after {:?}", self.timeout),
+                    duration_ms: 0,
                     timed_out: true,
                 })
             }
@@ -126,16 +133,14 @@ impl ShellExecutor {
 
     /// Parse command string into Command
     fn parse_command(command: &str) -> Result<Command> {
-        let parts: Vec<&str> = shlex::split(command)
-            .ok_or_else(|| AppError::Execution("Failed to parse command".to_string()))?
-            .into_iter()
-            .collect();
+        let parts: Vec<String> = shlex::split(command)
+            .ok_or_else(|| AppError::Execution("Failed to parse command".to_string()))?;
 
         if parts.is_empty() {
             return Err(AppError::Execution("Empty command".to_string()));
         }
 
-        let program = parts[0];
+        let program = &parts[0];
         let args = &parts[1..];
 
         debug!("Parsed command: {} with args: {:?}", program, args);

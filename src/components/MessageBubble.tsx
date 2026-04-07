@@ -41,9 +41,10 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           {message.role === 'assistant' ? (
             <ReactMarkdown
               components={{
-                code({ node, inline, className, children, ...props }) {
+                code({ className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
-                  return !inline && match ? (
+                  const isInline = !props.node || props.node.tagName !== 'pre';
+                  return !isInline && match ? (
                     <code className={className} {...props}>
                       {children}
                     </code>

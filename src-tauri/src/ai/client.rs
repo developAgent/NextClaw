@@ -1,21 +1,13 @@
-use anthropic_rs::{
-    error::{AnthropicError, AuthenticationError, RateLimitError, ValidationError},
-    Claude,
-};
-
-use async_trait::async_trait;
-use futures::StreamExt;
-use secrecy::{Secret, SecretString};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::utils::error::{AppError, Result};
 
-/// Claude AI client wrapper with streaming support
+/// Claude AI client wrapper
 pub struct ClaudeClient {
-    client: Claude,
+    api_key: SecretString,
     model: String,
 }
 
@@ -24,101 +16,97 @@ impl ClaudeClient {
     ///
     /// # Errors
     ///
-    /// Returns an error if the API key is invalid or client initialization fails
+    /// Returns an error if client initialization fails
     pub fn new(api_key: SecretString) -> Result<Self> {
-        let client = Claude::new(api_key);
         info!("Claude client initialized");
 
         Ok(Self {
-            client,
+            api_key,
             model: "claude-3-sonnet-20240229".to_string(),
         })
     }
 
     /// Set the model to use
-    #[must_use]
-    pub const fn with_model(mut self, model: String) -> Self {
+    pub fn with_model(mut self, model: String) -> Self {
         self.model = model;
         self
     }
 
-    /// Send a message and return the response (non-streaming)
+    /// Send a message and return the response
     ///
     /// # Errors
     ///
     /// Returns an error if the request fails
     pub async fn send_message(&self, message: &str, session_id: Uuid) -> Result<String> {
-        let response = self
-            .client
-            .message()
-            .with_system("You are CEOClaw, an AI assistant that helps users execute commands and automate tasks on their computer. Always be helpful, clear, and safe.")
-            .with_user(message)
-            .with_model(&self.model)
-            .await
-            .map_err(|e| match e {
-                AnthropicError::Authentication(_) => {
-                    AppError::Authentication("Invalid API key".to_string())
-                }
-                AnthropicError::RateLimit(_) => AppError::RateLimit("Rate limit exceeded".to_string()),
-                AnthropicError::Validation(e) => AppError::Validation(e.to_string()),
-                _ => AppError::Ai(e.to_string()),
-            })?;
+        let client = reqwest::Client::new();
 
-        let content = response.content();
-        let text = content.iter().filter_map(|block| block.as_text()).collect::<Vec<_>>().join("\n");
+        #[derive(Serialize)]
+        struct Message {
+            role: String,
+            content: String,
+        }
+
+        #[derive(Serialize)]
+        struct RequestBody {
+            model: String,
+            messages: Vec<Message>,
+            max_tokens: usize,
+        }
+
+        #[derive(Deserialize)]
+        struct ContentBlock {
+            #[serde(rename = "type")]
+            content_type: String,
+            text: Option<String>,
+        }
+
+        #[derive(Deserialize)]
+        struct Response {
+            content: Vec<ContentBlock>,
+        }
+
+        let request_body = RequestBody {
+            model: self.model.clone(),
+            messages: vec![
+                Message {
+                    role: "user".to_string(),
+                    content: message.to_string(),
+                }
+            ],
+            max_tokens: 4096,
+        };
+
+        let response = client
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", self.api_key.expose_secret())
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| AppError::Ai(format!("Failed to send request: {e}")))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(AppError::Ai(format!("API error: {} - {}", status, error_text)));
+        }
+
+        let response_body: Response = response
+            .json()
+            .await
+            .map_err(|e| AppError::Ai(format!("Failed to parse response: {e}")))?;
+
+        let text = response_body
+            .content
+            .iter()
+            .filter_map(|block| block.text.as_ref())
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
 
         debug!("Received response for session {}", session_id);
         Ok(text)
-    }
-
-    /// Send a message with streaming response
-    ///
-    /// Returns a stream of text chunks as they arrive
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the request fails to start
-    pub async fn send_message_streaming(
-        &self,
-        message: &str,
-        _session_id: Uuid,
-        mut callback: impl FnMut(String),
-    ) -> Result<()> {
-        let mut stream = self
-            .client
-            .message()
-            .with_system("You are CEOClaw, an AI assistant that helps users execute commands and automate tasks on their computer. Always be helpful, clear, and safe.")
-            .with_user(message)
-            .with_model(&self.model)
-            .stream()
-            .await
-            .map_err(|e| match e {
-                AnthropicError::Authentication(_) => {
-                    AppError::Authentication("Invalid API key".to_string())
-                }
-                AnthropicError::RateLimit(_) => AppError::RateLimit("Rate limit exceeded".to_string()),
-                AnthropicError::Validation(e) => AppError::Validation(e.to_string()),
-                _ => AppError::Ai(e.to_string()),
-            })?;
-
-        info!("Starting streaming response");
-
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(chunk) => {
-                    if let Some(text) = chunk.as_text() {
-                        callback(text);
-                    }
-                }
-                Err(e) => {
-                    error!("Stream error: {}", e);
-                    return Err(AppError::Ai(e.to_string()));
-                }
-            }
-        }
-
-        info!("Streaming completed");
-        Ok(())
     }
 }
 
@@ -140,17 +128,32 @@ impl std::fmt::Display for MessageRole {
     }
 }
 
+impl From<&str> for MessageRole {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "user" => Self::User,
+            "assistant" => Self::Assistant,
+            "system" => Self::System,
+            _ => Self::User,
+        }
+    }
+}
+
 /// A message in a conversation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
+    pub id: Uuid,
+    pub session_id: Uuid,
     pub role: MessageRole,
     pub content: String,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 impl Message {
-    pub fn new(role: MessageRole, content: String) -> Self {
+    pub fn new(session_id: Uuid, role: MessageRole, content: String) -> Self {
         Self {
+            id: Uuid::new_v4(),
+            session_id,
             role,
             content,
             timestamp: chrono::Utc::now(),
@@ -164,7 +167,8 @@ mod tests {
 
     #[test]
     fn test_message_creation() {
-        let msg = Message::new(MessageRole::User, "Hello".to_string());
+        let session_id = Uuid::new_v4();
+        let msg = Message::new(session_id, MessageRole::User, "Hello".to_string());
         assert_eq!(msg.role, MessageRole::User);
         assert_eq!(msg.content, "Hello");
     }
@@ -174,5 +178,12 @@ mod tests {
         assert_eq!(MessageRole::User.to_string(), "user");
         assert_eq!(MessageRole::Assistant.to_string(), "assistant");
         assert_eq!(MessageRole::System.to_string(), "system");
+    }
+
+    #[test]
+    fn test_message_role_from_str() {
+        assert_eq!(MessageRole::from("user"), MessageRole::User);
+        assert_eq!(MessageRole::from("assistant"), MessageRole::Assistant);
+        assert_eq!(MessageRole::from("system"), MessageRole::System);
     }
 }

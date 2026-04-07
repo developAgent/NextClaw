@@ -89,6 +89,7 @@ Provide a summary and any observations."#,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_system_prompt() {
@@ -106,9 +107,10 @@ mod tests {
 
     #[test]
     fn test_format_messages() {
+        let session_id = Uuid::new_v4();
         let messages = vec![
-            Message::new(MessageRole::User, "Hello".to_string()),
-            Message::new(MessageRole::Assistant, "Hi there!".to_string()),
+            Message::new(session_id, MessageRole::User, "Hello".to_string()),
+            Message::new(session_id, MessageRole::Assistant, "Hi there!".to_string()),
         ];
         let formatted = format_messages(&messages);
         assert_eq!(formatted.len(), 2);

@@ -18,10 +18,7 @@ tokio = { version = "1.35", features = ["full"] }
 tokio-util = "0.7"
 
 # Database
-duckdb = "0.9"
-
-# AI
-anthropic-rs = "0.2"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # Logging and telemetry
 tracing = "0.1"
@@ -54,6 +51,9 @@ glob = "0.3"
 command-group = "5.0"
 sysinfo = "0.30"
 shlex = "1.1"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
 
 [workspace.lints.rust]
 # Enable strict lints

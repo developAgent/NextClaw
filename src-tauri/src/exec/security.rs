@@ -19,12 +19,12 @@ impl SecurityValidator {
         blacklist: Vec<String>,
         sandbox_path: Option<PathBuf>,
     ) -> Self {
-        let whitelist_patterns = whitelist
+        let whitelist_patterns: Vec<Regex> = whitelist
             .iter()
             .filter_map(|pattern| Regex::new(pattern).ok())
             .collect();
 
-        let blacklist_patterns = blacklist
+        let blacklist_patterns: Vec<Regex> = blacklist
             .iter()
             .filter_map(|pattern| Regex::new(pattern).ok())
             .collect();
@@ -89,8 +89,8 @@ impl SecurityValidator {
             if token.starts_with('/') || token.starts_with('\\') || token.contains(':') {
                 let path = PathBuf::from(token);
                 if path.is_absolute() {
-                    let canonical_path = path.canonical().unwrap_or(path);
-                    let canonical_sandbox = sandbox.canonical().unwrap_or(sandbox.clone());
+                    let canonical_path = path.canonicalize().unwrap_or(path);
+                    let canonical_sandbox = sandbox.canonicalize().unwrap_or(sandbox.to_path_buf());
 
                     if !canonical_path.starts_with(&canonical_sandbox) {
                         warn!(
