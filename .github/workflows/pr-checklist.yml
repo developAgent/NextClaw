@@ -1,0 +1,78 @@
+name: PR Checklist
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  checklist:
+    name: PR Checklist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const body = pullRequest.body || '';
+            const hasChecklist = body.includes('- [ ]') || body.includes('- [x]');
+
+            if (!hasChecklist) {
+              core.warning('PR description should include a checklist');
+            }
+
+      - name: Check for breaking changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const touchedCargoLock = files.some(f => f.filename === 'Cargo.lock');
+            const touchedPackageLock = files.some(f => f.filename === 'package-lock.json');
+
+            if (touchedCargoLock || touchedPackageLock) {
+              core.warning('Lock file changes detected. Ensure dependencies are intentional.');
+            }
+
+      - name: Comment PR checklist
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        with:
+          script: |
+            const comment = `## 📋 PR Checklist
+
+            Please ensure your PR meets the following criteria:
+
+            - [ ] Code follows project style guidelines
+            - [ ] All tests pass (`cargo test` and `npm test`)
+            - [ ] No linting errors (`cargo clippy` and `npm run lint`)
+            - [ ] Documentation is updated if needed
+            - [ ] Commits are clear and follow conventional commits
+            - [ ] No lock files committed (Cargo.lock, package-lock.json)
+
+            ## 🚀 Quick Start
+
+            For local testing:
+            - Rust: \`cd src-tauri && cargo test\`
+            - Frontend: \`npm run lint\` and \`npm run build\`
+
+            Thanks for contributing! 🎉`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment,
+            });

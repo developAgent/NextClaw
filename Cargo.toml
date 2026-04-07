@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["CEOClaw Team"]
+license = "MIT"
+
+[workspace.dependencies]
+# Tauri
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+
+# Database
+duckdb = "0.9"
+
+# AI
+anthropic-rs = "0.2"
+
+# Logging and telemetry
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Configuration
+directories = "5.0"
+
+# Security
+secrecy = { version = "0.8", features = ["serde"] }
+zeroize = "1.7"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+regex = "1.10"
+glob = "0.3"
+
+# Shell execution
+command-group = "5.0"
+sysinfo = "0.30"
+shlex = "1.1"
+
+[workspace.lints.rust]
+# Enable strict lints
+unsafe_code = "forbid"
+unused_qualifications = "warn"
+dead_code = "warn"
+
+[workspace.lints.clippy]
+# Clippy lints
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+# Allow some pedantic lints that may be too strict
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
