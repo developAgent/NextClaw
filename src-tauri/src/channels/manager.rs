@@ -1,12 +1,10 @@
-use super::{Channel, ChannelConfig, ChannelHealth, ChannelProvider};
+use super::types::{Channel, ChannelConfig, ChannelHealth, ChannelProvider};
 use crate::db::Database;
 use crate::utils::error::{AppError, Result};
-use secrecy::SecretString;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
-use uuid::Uuid;
 
 /// Channel manager for managing multiple AI channels
 pub struct ChannelManager {
@@ -25,22 +23,12 @@ impl ChannelManager {
         }
     }
 
-    /// Initialize channel manager by loading channels from database
-    pub async fn initialize(&self) -> Result<()> {
+    /// Initialize channel manager by loading channels from database (blocking version for setup)
+    pub fn initialize_blocking(&self) -> Result<()> {
         info!("Initializing channel manager");
 
-        // Load channels from database
-        let conn = self.db.conn();
-        let conn_guard = conn.blocking_lock();
-        let mut stmt = conn_guard
-            .prepare("SELECT id, name, provider, model, api_key, api_base, priority, enabled, health_status, last_used, created_at, updated_at FROM channels")
-            .map_err(|e| AppError::Database(e.to_string()))?;
-
-        let mut rows = stmt.query([])
-            .map_err(|e| AppError::Database(e.to_string()))?;
-
-        let mut channels = self.channels.write().await;
-        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+        // Create a channel from database row data
+        fn create_channel_from_row(row: &rusqlite::Row) -> Result<Channel> {
             let id: String = row.get(0).map_err(|e| AppError::Database(e.to_string()))?;
             let name: String = row.get(1).map_err(|e| AppError::Database(e.to_string()))?;
             let provider_str: String = row.get(2).map_err(|e| AppError::Database(e.to_string()))?;
@@ -54,7 +42,14 @@ impl ChannelManager {
             let created_at: i64 = row.get(10).map_err(|e| AppError::Database(e.to_string()))?;
             let updated_at: i64 = row.get(11).map_err(|e| AppError::Database(e.to_string()))?;
 
-            let channel = Channel {
+            let health = match health_str.as_str() {
+                "healthy" => ChannelHealth::Healthy,
+                "degraded" => ChannelHealth::Degraded,
+                "unhealthy" => ChannelHealth::Unhealthy,
+                _ => ChannelHealth::Unknown,
+            };
+
+            Ok(Channel {
                 id,
                 name,
                 provider: ChannelProvider::from(provider_str.as_str()),
@@ -63,17 +58,32 @@ impl ChannelManager {
                 api_base,
                 priority,
                 enabled: enabled != 0,
-                health_status: match health_str.as_str() {
-                    "healthy" => ChannelHealth::Healthy,
-                    "degraded" => ChannelHealth::Degraded,
-                    "unhealthy" => ChannelHealth::Unhealthy,
-                    _ => ChannelHealth::Unknown,
-                },
+                health_status: health,
                 last_used,
                 created_at,
                 updated_at,
-            };
+            })
+        }
 
+        // Load channels from database
+        let conn = self.db.conn();
+        let conn_guard = conn.blocking_lock();
+        let mut stmt = conn_guard
+            .prepare("SELECT id, name, provider, model, api_key, api_base, priority, enabled, health_status, last_used, created_at, updated_at FROM channels")
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        let mut channels_list = Vec::new();
+        let mut rows = stmt.query([])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+            let channel = create_channel_from_row(row)?;
+            channels_list.push(channel);
+        }
+
+        // Store channels using blocking lock
+        let mut channels = self.channels.blocking_write();
+        for channel in channels_list {
             channels.insert(channel.id.clone(), channel);
         }
 
@@ -85,7 +95,6 @@ impl ChannelManager {
     pub async fn get_all_channels(&self) -> Result<Vec<Channel>> {
         let channels = self.channels.read().await;
         let mut channels_vec: Vec<Channel> = channels.values().cloned().collect();
-        // Sort by priority (highest first)
         channels_vec.sort_by(|a, b| b.priority.cmp(&a.priority));
         Ok(channels_vec)
     }
@@ -99,8 +108,6 @@ impl ChannelManager {
     /// Get the best available channel
     pub async fn get_best_channel(&self) -> Result<Option<Channel>> {
         let channels = self.get_all_channels().await?;
-
-        // Filter enabled channels
         let enabled_channels: Vec<&Channel> = channels.iter()
             .filter(|c| c.enabled)
             .collect();
@@ -110,15 +117,13 @@ impl ChannelManager {
             return Ok(None);
         }
 
-        // Find the first healthy channel with highest priority
         for channel in &enabled_channels {
             if channel.health_status == ChannelHealth::Healthy {
                 debug!("Selected healthy channel: {}", channel.name);
-                return Ok(Some(channel.clone()));
+                return Ok(Some((*channel).clone()));
             }
         }
 
-        // If no healthy channels, return the first enabled one
         warn!("No healthy channels, using first enabled channel");
         Ok(enabled_channels.first().map(|c| (*c).clone()))
     }
@@ -140,7 +145,7 @@ impl ChannelManager {
                 &channel.api_key,
                 &channel.api_base,
                 &channel.priority,
-                &channel.enabled as i32,
+                channel.enabled as i32,
                 &channel.health_status.to_string(),
                 &channel.last_used,
                 &channel.created_at,
@@ -149,9 +154,10 @@ impl ChannelManager {
         ).map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut channels = self.channels.write().await;
+        let channel_name = channel.name.clone();
         channels.insert(channel.id.clone(), channel);
 
-        info!("Added channel: {}", channel.name);
+        info!("Added channel: {}", channel_name);
         Ok(())
     }
 
@@ -172,7 +178,7 @@ impl ChannelManager {
                 &channel.api_key,
                 &channel.api_base,
                 &channel.priority,
-                &channel.enabled as i32,
+                channel.enabled as i32,
                 &channel.health_status.to_string(),
                 &channel.last_used,
                 channel.updated_at,
@@ -181,9 +187,10 @@ impl ChannelManager {
         ).map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut channels = self.channels.write().await;
+        let channel_name = channel.name.clone();
         channels.insert(channel.id.clone(), channel);
 
-        info!("Updated channel: {}", channel.name);
+        info!("Updated channel: {}", channel_name);
         Ok(())
     }
 
@@ -223,15 +230,12 @@ impl ChannelManager {
         let channel = self.get_channel(id).await?
             .ok_or_else(|| AppError::Validation(format!("Channel not found: {}", id)))?;
 
-        // TODO: Implement actual health check
-        // For now, return healthy if API key is configured
         let health = if channel.api_key.is_some() {
             ChannelHealth::Healthy
         } else {
             ChannelHealth::Degraded
         };
 
-        // Update channel health
         if let Some(mut ch) = self.get_channel(id).await? {
             ch.update_health(health);
             self.update_channel(ch).await?;
@@ -250,15 +254,5 @@ impl ChannelManager {
         let mut config_mut = self.config.write().await;
         *config_mut = config;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_channel_manager_creation() {
-        // Test would require database initialization
     }
 }

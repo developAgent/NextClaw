@@ -40,7 +40,16 @@
       "Bash(timeout 5 ./target/release/ceo-claw.exe)",
       "Bash(start \"\" ./target/release/ceo-claw.exe)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(grep -B 2 \"expected \\\\`{\\\\`\")",
+      "Bash(export PATH=\"/c/Users/Administrator/.cargo/bin:$PATH\")",
+      "Bash(E:\\\\project\\\\NextClaw\\\\target\\\\release\\\\ceo-claw.exe:*)",
+      "Bash(tasklist)",
+      "Read(//c/Users/Administrator/AppData/Local/CEOClaw/**)",
+      "Read(//c/Users/Administrator/.local/share/CEOClaw/**)",
+      "Bash(sqlite3:*)",
+      "Bash(taskkill //F //IM \"ceo-claw.exe\")",
+      "Bash(E:\\\\project\\\\NextClaw\\\\target\\\\release\\\\bundle\\\\nsis\\\\CEOClaw_0.1.0_x64-setup.exe:*)"
     ]
   }
 }

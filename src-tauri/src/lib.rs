@@ -84,14 +84,10 @@ pub fn run() {
             // Manage channel manager
             app.manage(channel_manager.clone());
 
-            // Initialize channel manager
-            let rt = tokio::runtime::Runtime::new()
-                .expect("Failed to create tokio runtime");
-            rt.block_on(async {
-                if let Err(e) = channel_manager.initialize().await {
-                    tracing::error!("Failed to initialize channel manager: {}", e);
-                }
-            });
+            // Initialize channel manager (blocking call during setup)
+            if let Err(e) = channel_manager.initialize_blocking() {
+                tracing::error!("Failed to initialize channel manager: {}", e);
+            }
 
             info!("CEOClaw initialized successfully");
 

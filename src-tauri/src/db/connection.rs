@@ -212,7 +212,7 @@ impl Database {
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_hotkeys_action ON hotkeys(action)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create hotkeys index: {e}"))?);
+        ).map_err(|e| AppError::Database(format!("Failed to create hotkeys index: {e}")))?;
 
         debug!("Database schema initialized");
         Ok(())

@@ -1,9 +1,7 @@
-use crate::channels::{Channel, ChannelConfig, ChannelHealth, ChannelManager};
+use crate::channels::{Channel, ChannelConfig, ChannelHealth, ChannelManager, ChannelProvider};
 use crate::utils::error::Result;
-use secrecy::SecretString;
 use tauri::State;
-use uuid::Uuid;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Get all channels
 #[tauri::command]
@@ -25,80 +23,23 @@ pub async fn get_channel(
 /// Add a new channel
 #[tauri::command]
 pub async fn add_channel(
-    name: String,
-    provider: String,
-    model: String,
-    api_key: Option<String>,
-    api_base: Option<String>,
-    priority: Option<i32>,
+    channel: Channel,
     manager: State<'_, ChannelManager>,
-) -> Result<Channel> {
-    let provider = match provider.to_lowercase().as_str() {
-        "claude" => crate::channels::ChannelProvider::Claude,
-        "openai" => crate::channels::ChannelProvider::OpenAI,
-        "gemini" => crate::channels::ChannelProvider::Gemini,
-        _ => return Err(crate::utils::error::AppError::Validation(
-            format!("Unknown provider: {}", provider)
-        )),
-    };
-
-    let mut channel = Channel::new(name, provider, model);
-
-    if let Some(key) = api_key {
-        channel = channel.with_api_key(key);
-    }
-
-    if let Some(base) = api_base {
-        channel = channel.with_api_base(base);
-    }
-
-    if let Some(prio) = priority {
-        channel = channel.with_priority(prio);
-    }
-
+) -> Result<()> {
     manager.add_channel(channel.clone()).await?;
     info!("Added channel: {}", channel.name);
-    Ok(channel)
+    Ok(())
 }
 
 /// Update an existing channel
 #[tauri::command]
 pub async fn update_channel(
-    id: String,
-    name: Option<String>,
-    model: Option<String>,
-    api_key: Option<String>,
-    api_base: Option<String>,
-    priority: Option<i32>,
-    enabled: Option<bool>,
+    channel: Channel,
     manager: State<'_, ChannelManager>,
-) -> Result<Channel> {
-    let mut channel = manager.get_channel(&id).await?
-        .ok_or_else(|| crate::utils::error::AppError::Validation(format!("Channel not found: {}", id)))?;
-
-    if let Some(n) = name {
-        channel.name = n;
-    }
-    if let Some(m) = model {
-        channel.model = m;
-    }
-    if let Some(key) = api_key {
-        channel.api_key = Some(key);
-    }
-    if let Some(base) = api_base {
-        channel.api_base = Some(base);
-    }
-    if let Some(prio) = priority {
-        channel.priority = prio;
-    }
-    if let Some(en) = enabled {
-        channel.enabled = en;
-    }
-    channel.updated_at = chrono::Utc::now().timestamp();
-
+) -> Result<()> {
     manager.update_channel(channel.clone()).await?;
     info!("Updated channel: {}", channel.name);
-    Ok(channel)
+    Ok(())
 }
 
 /// Delete a channel
@@ -155,14 +96,4 @@ pub async fn update_channel_config(
 ) -> Result<()> {
     manager.update_config(config).await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_channel_commands() {
-        // Test channel commands
-    }
 }
