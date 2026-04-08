@@ -1,0 +1,16 @@
+{
+  "id": "com.ceoclaw.examples.hello-world",
+  "name": "Hello World",
+  "version": "0.1.0",
+  "description": "A simple example skill that greets the user",
+  "author": "CEOClaw Team",
+  "api_version": "1.0",
+  "entry_point": "main",
+  "permissions": [
+    {
+      "permission_type": "system.env",
+      "description": "Read environment variables",
+      "required": true
+    }
+  ]
+}

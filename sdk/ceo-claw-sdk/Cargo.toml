@@ -1,0 +1,45 @@
+[package]
+name = "ceo-claw-sdk"
+version = "0.1.0"
+edition = "2021"
+authors = ["CEOClaw Team"]
+license = "MIT"
+description = "SDK for developing CEOClaw WASM skills"
+repository = "https://github.com/ceoclaw/ceo-claw-sdk"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# CEOClaw core types (from CEOClaw application)
+ceo-claw-types = { path = "../ceo-claw-types", version = "0.1.0" }
+
+# WASM support
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-wasm-bindgen = "0.6"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async runtime
+async-trait = "0.1"
+futures = "0.3"
+
+# Logging
+log = "0.4"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+default = ["wasm"]
+wasm = ["wasm-bindgen", "wasm-bindgen-futures"]
+mock = []

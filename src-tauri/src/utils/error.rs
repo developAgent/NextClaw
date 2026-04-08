@@ -58,6 +58,13 @@ impl From<rusqlite::Error> for AppError {
     }
 }
 
+// Implement conversion from anyhow::Error
+impl From<anyhow::Error> for AppError {
+    fn from(err: anyhow::Error) -> Self {
+        AppError::Internal(err.to_string())
+    }
+}
+
 // Implement conversion to Tauri's InvokeError
 impl From<AppError> for tauri::ipc::InvokeError {
     fn from(error: AppError) -> Self {

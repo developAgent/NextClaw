@@ -1,0 +1,305 @@
+use crate::skills::manifest::SkillManifest;
+use crate::skills::permissions::{Permission, PermissionSet};
+use crate::skills::sandbox::SandboxConfig;
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use tracing::{debug, error, info};
+use std::time::Duration;
+
+/// WASM runtime configuration
+#[derive(Debug, Clone)]
+pub struct WasmRuntimeConfig {
+    /// Maximum execution time for WASM modules
+    pub max_execution_time: Duration,
+    /// Maximum memory allocation in bytes
+    pub max_memory: Option<u64>,
+    /// Enable WASI (WebAssembly System Interface)
+    pub enable_wasi: bool,
+    /// Enable debug output
+    pub debug: bool,
+}
+
+impl Default for WasmRuntimeConfig {
+    fn default() -> Self {
+        Self {
+            max_execution_time: Duration::from_secs(30),
+            max_memory: Some(128 * 1024 * 1024), // 128MB
+            enable_wasi: true,
+            debug: false,
+        }
+    }
+}
+
+/// WASM module execution result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WasmExecutionResult {
+    /// Exit status
+    pub status: i32,
+    /// Standard output
+    pub stdout: String,
+    /// Standard error
+    pub stderr: String,
+    /// Execution time in milliseconds
+    pub execution_time_ms: u64,
+    /// Memory used in bytes
+    pub memory_used: Option<u64>,
+}
+
+/// WASM function argument
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WasmArgument {
+    #[serde(rename = "string")]
+    String(String),
+    #[serde(rename = "number")]
+    Number(f64),
+    #[serde(rename = "boolean")]
+    Boolean(bool),
+    #[serde(rename = "array")]
+    Array(Vec<WasmArgument>),
+    #[serde(rename = "object")]
+    Object(serde_json::Map<String, WasmArgument>),
+    #[serde(rename = "null")]
+    Null,
+}
+
+/// WASM module
+#[derive(Clone)]
+pub struct WasmModule {
+    bytes: Vec<u8>,
+    manifest: SkillManifest,
+}
+
+impl WasmModule {
+    /// Create a new WASM module from bytes
+    pub fn new(bytes: Vec<u8>, manifest: SkillManifest) -> Result<Self> {
+        // Validate WASM magic number
+        if bytes.len() < 4 || &bytes[0..4] != b"\0asm" {
+            anyhow::bail!("Invalid WASM file");
+        }
+
+        // Validate manifest
+        manifest.validate()
+            .context("Invalid skill manifest")?;
+
+        Ok(Self { bytes, manifest })
+    }
+
+    /// Load a WASM module from a file
+    pub fn from_file(path: PathBuf, manifest: SkillManifest) -> Result<Self> {
+        let bytes = std::fs::read(&path)
+            .context(format!("Failed to read WASM file: {:?}", path))?;
+
+        Self::new(bytes, manifest)
+    }
+
+    /// Get the manifest
+    pub fn manifest(&self) -> &SkillManifest {
+        &self.manifest
+    }
+
+    /// Get the WASM bytes
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// WASM runtime for executing WASM modules
+pub struct WasmRuntime {
+    config: WasmRuntimeConfig,
+    sandbox_config: SandboxConfig,
+    permission_set: PermissionSet,
+}
+
+impl WasmRuntime {
+    /// Create a new WASM runtime
+    pub fn new(config: WasmRuntimeConfig, sandbox_config: SandboxConfig) -> Self {
+        Self {
+            config,
+            sandbox_config,
+            permission_set: PermissionSet::new(),
+        }
+
+    }
+
+    /// Create a runtime with default configuration
+    pub fn default() -> Self {
+        Self::new(WasmRuntimeConfig::default(), SandboxConfig::default())
+    }
+
+    /// Create a runtime with permissive configuration
+    pub fn permissive() -> Self {
+        Self::new(
+            WasmRuntimeConfig::default(),
+            SandboxConfig::permissive(),
+        )
+    }
+
+    /// Set permissions for the runtime
+    pub fn set_permissions(&mut self, permissions: PermissionSet) {
+        self.permission_set = permissions;
+    }
+
+    /// Execute a WASM module
+    pub fn execute_module(
+        &self,
+        module: &WasmModule,
+        function: &str,
+        args: Vec<WasmArgument>,
+    ) -> Result<WasmExecutionResult> {
+        let start_time = std::time::Instant::now();
+
+        debug!("Executing WASM module: {}", module.manifest().id);
+        debug!("Function: {}, Args: {:?}", function, args);
+
+        // Check execution permissions
+        self.check_permissions(module.manifest())?;
+
+        // Execute the module
+        let result = if self.config.enable_wasi {
+            self.execute_wasi_module(module, function, args)?
+        } else {
+            self.execute_raw_module(module, function, args)?
+        };
+
+        let execution_time = start_time.elapsed();
+
+        info!(
+            "Wasm module executed: {} (status: {}, time: {}ms)",
+            module.manifest().id,
+            result.status,
+            execution_time.as_millis()
+        );
+
+        Ok(WasmExecutionResult {
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            execution_time_ms: execution_time.as_millis() as u64,
+            memory_used: result.memory_used,
+        })
+    }
+
+    /// Execute a WASM module with WASI support
+    fn execute_wasi_module(
+        &self,
+        module: &WasmModule,
+        function: &str,
+        args: Vec<WasmArgument>,
+    ) -> Result<WasmExecutionResult> {
+        // Placeholder for WASI execution
+        // In a real implementation, this would use wasmtime or wasmer
+        debug!("Executing WASI module: {}", module.manifest().id);
+
+        Ok(WasmExecutionResult {
+            status: 0,
+            stdout: "WASI execution not yet implemented".to_string(),
+            stderr: String::new(),
+            execution_time_ms: 0,
+            memory_used: None,
+        })
+    }
+
+    /// Execute a WASM module without WASI support
+    fn execute_raw_module(
+        &self,
+        module: &WasmModule,
+        function: &str,
+        args: Vec<WasmArgument>,
+    ) -> Result<WasmExecutionResult> {
+        // Placeholder for raw WASM execution
+        // In a real implementation, this would use wasmtime or wasmer
+        debug!("Executing raw WASM module: {}", module.manifest().id);
+
+        Ok(WasmExecutionResult {
+            status: 0,
+            stdout: "Raw WASM execution not yet implemented".to_string(),
+            stderr: String::new(),
+            execution_time_ms: 0,
+            memory_used: None,
+        })
+    }
+
+    /// Check if the module has the required permissions
+    fn check_permissions(&self, manifest: &SkillManifest) -> Result<()> {
+        for permission in &manifest.permissions {
+            let perm = Permission::new(
+                permission.permission_type.clone(),
+                permission.scope.clone(),
+            );
+
+            // Check if permission is granted
+            let is_granted = self.permission_set.get_granted().iter().any(|p| {
+                p.permission_type == perm.permission_type &&
+                (p.scope.is_none() || p.scope == perm.scope)
+            });
+
+            if permission.required && !is_granted {
+                anyhow::bail!("Required permission not granted: {}", permission.permission_type);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get runtime configuration
+    pub fn config(&self) -> &WasmRuntimeConfig {
+        &self.config
+    }
+
+    /// Get sandbox configuration
+    pub fn sandbox_config(&self) -> &SandboxConfig {
+        &self.sandbox_config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wasm_module_creation() {
+        // Create a minimal valid WASM module
+        let wasm_bytes = vec![0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00]; // WASM magic + version
+
+        let manifest = SkillManifest::new(
+            "com.example.test".to_string(),
+            "Test Skill".to_string(),
+            "1.0.0".to_string(),
+            "A test skill".to_string(),
+            "Test Author".to_string(),
+        );
+
+        let result = WasmModule::new(wasm_bytes, manifest);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_wasm_module_invalid_magic() {
+        let wasm_bytes = vec![0x00, 0x00, 0x00, 0x00]; // Invalid magic
+
+        let manifest = SkillManifest::new(
+            "com.example.test".to_string(),
+            "Test Skill".to_string(),
+            "1.0.0".to_string(),
+            "A test skill".to_string(),
+            "Test Author".to_string(),
+        );
+
+        let result = WasmModule::new(wasm_bytes, manifest);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wasm_runtime_creation() {
+        let runtime = WasmRuntime::default();
+        assert_eq!(runtime.config().max_execution_time.as_secs(), 30);
+    }
+
+    #[test]
+    fn test_wasm_runtime_permissive() {
+        let runtime = WasmRuntime::permissive();
+        assert!(runtime.sandbox_config().enable_filesystem);
+    }
+}

@@ -4,7 +4,7 @@
 
 # CEOClaw
 
-**The Zero-Code AI Assistant for Desktop Automation**
+**The Zero-Code Desktop Automation Platform**
 
 [![Build Status](https://github.com/your-org/ceo-claw/workflows/Build%20CEOClaw/badge.svg)](https://github.com/your-org/ceo-claw/actions)
 [![Code Quality](https://github.com/your-org/ceo-claw/workflows/Code%20Quality/badge.svg)](https://github.com/your-org/ceo-claw/actions)
@@ -17,28 +17,62 @@
 
 ## 🚀 What is CEOClaw?
 
-CEOClaw is a cross-platform desktop AI assistant that empowers non-technical users to accomplish complex tasks through natural language conversations. Built with Rust and React, CEOClaw provides a secure, efficient, and intuitive interface for AI-powered automation.
+CEOClaw is a powerful desktop automation platform that empowers users to automate repetitive tasks through visual workflow creation, screen recording, and AI-powered element recognition. Built with Rust and React, CEOClaw provides an intuitive interface for creating and managing automation macros without coding.
+
+**Inspired by clawX, nexu, and openclaw** - CEOClaw builds upon the best features of these automation tools while providing enhanced UI/UX and modern technology.
 
 ### ✨ Key Features
 
 | Feature | Description |
 |---------|-------------|
-| 🤖 **AI-Powered Conversations** | Intelligent interactions powered by Anthropic Claude models |
-| 💻 **Command Execution** | Safely execute shell commands with comprehensive security validations |
-| 📁 **File Operations** | Browse, read, analyze, and write files through AI assistance |
-| 🗣️ **Multi-Session Management** | Multiple chat sessions with persistent conversation history |
-| 🔒 **Secure Storage** | Encrypted API key storage in local DuckDB database |
-| 🌙 **Modern Dark Theme** | Eye-friendly interface optimized for extended use |
-| ⚡ **Blazing Fast** | Rust backend ensures lightning-fast performance |
+| 🎬 **Screen Recording** | Record mouse clicks, keyboard input, and text entry as reusable automation macros |
+| 🔧 **Visual Workflow Builder** | Create complex automation flows with an intuitive drag-and-drop node editor |
+| 📚 **Macro Library** | Organize, categorize, and reuse your automation scripts |
+| ⚡ **Playback Execution** | Replay your recordings with configurable speed and precision |
+| 🤖 **AI Element Recognition** | Smart element identification using OCR and computer vision for robust automation |
+| ⏰ **Trigger System** | Schedule automations to run on time, events, or keyboard shortcuts |
+| 🎯 **Visual Feedback** | See your automations in action with real-time visual indicators |
 | 🌍 **Cross-Platform** | Native builds for Windows, macOS, and Linux |
+| 🎨 **Modern Dark Theme** | Beautiful interface optimized for extended use |
+
+---
+
+## 🎯 Core Capabilities
+
+### Recording & Replay
+- Record mouse clicks, scrolls, drags, and keyboard input
+- Capture screenshots at key moments for reference
+- Pause, resume, and stop recordings at will
+- Replay recordings at adjustable speeds
+- Visual playback with real-time mouse tracking
+
+### Visual Workflow Builder
+- Drag-and-drop node interface
+- Pre-built action nodes: Click, Type, Wait, Scroll, OCR, Loop, Condition, and more
+- Visual connection between workflow steps
+- Variables and data flow between nodes
+- Nested workflows and reusable components
+
+### Macro Management
+- Organize macros by category
+- Tag-based filtering and search
+- Track usage statistics
+- Export and share macros
+- Import macros from clawX/openclaw formats
+
+### AI-Powered Features
+- Optical Character Recognition (OCR) for text-based automation
+- Computer vision for UI element detection
+- Smart adaptation to UI changes
+- Automatic optimization of recorded actions
 
 ---
 
 ## 🖼️ Screenshots
 
 <div align="center">
-  <img src="https://via.placeholder.com/800x500/1a1a1a/FFFFFF?text=Chat+Interface" alt="Chat Interface" width="45%" />
-  <img src="https://via.placeholder.com/800x500/1a1a1a/FFFFFF?text=Settings+Panel" alt="Settings Panel" width="45%" />
+  <img src="https://via.placeholder.com/800x500/1a1a1a/FFFFFF?text=Dashboard" alt="Dashboard" width="45%" />
+  <img src="https://via.placeholder.com/800x500/1a1a1a/FFFFFF?text=Workflow+Builder" alt="Workflow Builder" width="45%" />
 </div>
 
 ---
@@ -52,9 +86,6 @@ Tauri 2.0       ──  Cross-platform desktop framework
 DuckDB          ──  High-performance embedded database
 Tokio           ──  Async runtime for concurrent operations
 Tracing         ──  Structured logging and telemetry
-Anthropic SDK   ──  Claude API integration
-Secrecy         ──  Secure secret handling
-Shlex           ──  Shell command parsing
 ```
 
 ### Frontend (TypeScript + React)
@@ -64,7 +95,6 @@ React 18        ──  Modern UI with hooks and concurrent features
 TypeScript      ──  Type-safe development
 Vite            ──  Lightning-fast build tool
 Tailwind CSS    ──  Utility-first styling
-Zustand         ──  Lightweight state management
 Lucide React    ──  Beautiful icon library
 ```
 
@@ -141,38 +171,47 @@ Built artifacts will be in `src-tauri/target/release/bundle/`.
 
 ## 📖 Usage Guide
 
-### First-Time Setup
+### Creating Your First Automation
 
 1. **Launch CEOClaw** after installation
-2. **Configure API Key**:
-   - Press `Ctrl+,` (or `Cmd+,` on macOS) to open Settings
-   - Enter your Anthropic API key (`sk-ant-...`)
-   - Click "Save API Key"
-3. **Select Model**: Choose between Claude Sonnet, Opus, or Haiku
-4. **Start Chatting**: Create a new session and begin!
+2. **Start Recording**:
+   - Click "Record Actions" in the dashboard
+   - Enter a name for your automation
+   - Perform the actions you want to automate (clicks, typing, etc.)
+   - Click "Stop" when finished
+3. **Save as Macro**: Your recording is saved and ready to replay
+4. **Replay**: Click the play button to execute your automation
 
-### Example Conversations
+### Building Workflows
 
-```
-You: List all files in the current directory
-CEOClaw: [Executes ls -la]
-CEOClaw: Here are the files in your current directory:
-        drwxr-xr-x  user  staff  128 Apr  7 10:00 .
-        drwxr-xr-x  user  staff   64 Apr  7 09:00 ..
-        -rw-r--r--  user  staff  256 Apr  7 10:00 file.txt
+1. **Open Workflow Builder**: Click "New Workflow" in the dashboard
+2. **Add Nodes**: Drag action nodes from the sidebar (Click, Type, Wait, etc.)
+3. **Connect Nodes**: Draw connections between nodes to define flow
+4. **Configure Properties**: Set parameters for each node in the properties panel
+5. **Test and Save**: Test your workflow and save it as a reusable macro
 
-You: Read the contents of file.txt
-CEOClaw: [Reads file and displays content]
-CEOClaw: The file contains: "Hello, World!"
-```
+### Using the Macro Library
 
-### Security Features
+- Browse all your saved automations
+- Search by name or filter by category
+- Track usage statistics
+- Export macros for sharing
 
-- ✅ **Command Validation**: Whitelist/blacklist enforcement
-- ✅ **Confirmation Prompts**: Dangerous commands require approval
-- ✅ **Path Sandboxing**: Restrict file operations to safe directories
-- ✅ **Timeout Protection**: Commands automatically terminate after timeout
-- ✅ **Audit Logging**: All actions logged for review
+### Example Automations
+
+**Daily Report Generation**:
+1. Click on spreadsheet application
+2. Type "Ctrl+N" to create new file
+3. Enter data from another source
+4. Save with date stamp
+5. Close application
+
+**Email Processing**:
+1. Click email icon
+2. Wait for inbox to load
+3. Click specific email
+4. Extract data using OCR
+5. Save to database
 
 ---
 
@@ -188,42 +227,41 @@ Settings are stored in platform-specific locations:
 | macOS | `~/Library/Application Support/com.ceoclaw.app/config.toml` |
 | Windows | `%APPDATA%\CEOClaw\config.toml` |
 
-### Configuration Options
+### Recording Configuration
 
 ```toml
-[api]
-claude_model = "claude-3-sonnet-20240229"
-request_timeout_secs = 120
-max_retries = 3
+[recording]
+capture_screenshots = true
+screenshot_frequency = 5
+record_mouse_moves = true
+max_duration_ms = 3600000
+enable_ai_recognition = true
+auto_optimize = true
+```
 
-[commands]
-timeout_secs = 300
-allow_shell = true
-whitelist = ["ls", "cat", "echo"]
-blacklist = ["rm -rf /", "dd if=/dev/zero"]
-sandbox_path = "/safe/directory"
-require_confirmation = true
+### Playback Configuration
 
-[ui]
-theme = "dark"
-font_size = 14
-show_timestamps = true
-max_history = 1000
+```toml
+[playback]
+default_speed = "normal"
+loop_enabled = false
+stop_on_error = true
+show_visual_feedback = true
 ```
 
 ---
 
 ## 🔒 Security Architecture
 
-CEOClaw implements defense-in-depth security:
+CEOClaw implements security measures for automation:
 
 ```
 ┌─────────────────────────────────────────────┐
-│              Application Layer              │
+│           Automation Security Layer         │
 ├─────────────────────────────────────────────┤
-│  Command Whitelist/Blacklist Validation     │
-│  Path Sandbox Enforcement                   │
-│  User Confirmation Prompts                  │
+│  User Confirmation for Critical Actions     │
+│  Sandbox Restrictions for File Access       │
+│  Playback Timeout Protection                │
 ├─────────────────────────────────────────────┤
 │              Rust Runtime Layer             │
 ├─────────────────────────────────────────────┤
@@ -233,19 +271,18 @@ CEOClaw implements defense-in-depth security:
 ├─────────────────────────────────────────────┤
 │              Data Storage Layer             │
 ├─────────────────────────────────────────────┤
-│  Encrypted API Keys (secrecy crate)         │
 │  Local DuckDB Database                     │
+│  Encrypted Configuration (if needed)       │
 │  No Cloud Data Transmission                │
 └─────────────────────────────────────────────┘
 ```
 
 ### Security Guarantees
 
-- 🛡️ **No data leaves your machine** - All processing happens locally (except API calls to Claude)
-- 🔑 **API keys encrypted** - Stored using secure encryption
+- 🛡️ **No data leaves your machine** - All automation happens locally
 - 🚫 **No unsafe Rust code** - Memory safety guaranteed
-- 📝 **Full audit trail** - All commands logged
-- ⏱️ **Timeout protection** - Prevents runaway commands
+- 📝 **Full audit trail** - All recordings logged
+- ⏱️ **Playback timeout** - Prevents runaway automations
 
 ---
 
@@ -258,23 +295,24 @@ ceo-claw/
 ├── .github/workflows/      # CI/CD configurations
 ├── src/                    # React frontend
 │   ├── components/         # UI components
-│   │   ├── ChatInterface.tsx
-│   │   ├── Sidebar.tsx
-│   │   ├── MessageBubble.tsx
-│   │   ├── InputArea.tsx
-│   │   ├── CommandResult.tsx
-│   │   └── SettingsModal.tsx
-│   ├── store/             # Zustand state management
+│   │   ├── Dashboard.tsx           # Main dashboard
+│   │   ├── WorkflowBuilder.tsx     # Visual workflow editor
+│   │   ├── MacroLibrary.tsx        # Macro management
+│   │   ├── Recorder/
+│   │   │   └── RecorderControl.tsx # Recording controls
+│   │   └── SettingsModal.tsx       # Settings panel
 │   ├── types/             # TypeScript type definitions
+│   │   ├── index.ts               # Common types
+│   │   └── automation.ts          # Automation types
 │   └── utils/             # Utility functions
 ├── src-tauri/             # Rust backend
 │   ├── src/
-│   │   ├── ai/            # Claude API integration
+│   │   ├── recorder/      # Recording system
+│   │   ├── workflow/      # Workflow engine
+│   │   ├── player/        # Playback execution
 │   │   ├── commands/      # Tauri command handlers
 │   │   ├── db/            # DuckDB database layer
-│   │   ├── exec/          # Command execution engine
-│   │   ├── telemetry/     # Logging setup
-│   │   └── utils/         # Shared utilities
+│   │   └── telemetry/     # Logging setup
 │   └── tauri.conf.json    # Tauri configuration
 ├── Cargo.toml             # Rust workspace config
 ├── package.json           # Node dependencies
@@ -346,7 +384,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [Tauri](https://tauri.app/) - For the amazing desktop framework
-- [Anthropic](https://www.anthropic.com/) - For Claude AI
+- [ClawX](https://github.com/clawsoftware/clawx) - For pioneering the AI-powered automation approach
+- [OpenClaw](https://github.com/openclaw/openclaw) - For the open-source automation foundation
+- [Nexu](https://github.com/nexu-project/nexu) - For innovative automation features
 - [DuckDB](https://duckdb.org/) - For the embedded database
 - All contributors who help make CEOClaw better
 

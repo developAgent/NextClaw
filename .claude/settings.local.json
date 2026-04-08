@@ -49,7 +49,17 @@
       "Read(//c/Users/Administrator/.local/share/CEOClaw/**)",
       "Bash(sqlite3:*)",
       "Bash(taskkill //F //IM \"ceo-claw.exe\")",
-      "Bash(E:\\\\project\\\\NextClaw\\\\target\\\\release\\\\bundle\\\\nsis\\\\CEOClaw_0.1.0_x64-setup.exe:*)"
+      "Bash(E:\\\\project\\\\NextClaw\\\\target\\\\release\\\\bundle\\\\nsis\\\\CEOClaw_0.1.0_x64-setup.exe:*)",
+      "Bash(cargo check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -s \"https://api.github.com/repos/ValueCell-ai/ClawX/readme\")",
+      "Bash(curl:*)",
+      "Bash(python -c \"import sys, json, base64; data = json.load\\(sys.stdin\\); print\\(base64.b64decode\\(data['content']\\).decode\\('utf-8'\\)\\)\")",
+      "Bash(xxd)",
+      "Bash(where cargo:*)",
+      "Bash(ls -la E:/project/NextClaw/target/release/*.exe)",
+      "Bash(E:/project/NextClaw/target/release/ceo-claw.exe:*)",
+      "Bash(export PATH=\"/c/Users/Administrator/.rustup/toolchains/stable-x86_64-pc-windows-msvc/bin:$PATH\")"
     ]
   }
 }

@@ -55,6 +55,30 @@ shlex = "1.1"
 # HTTP client
 reqwest = { version = "0.12", features = ["json"] }
 
+# Streaming
+futures = "0.3"
+
+# WASM support
+wasmtime = "23.0"
+
+# Base64 encoding
+base64 = "0.22"
+
+# Semantic versioning
+semver = "1.0"
+
+# Image processing (for OCR and screen capture)
+image = "0.24"
+
+# Computer vision
+opencv = { version = "0.88", features = ["opencv-4"] }
+
+# Screen capture
+screenshots = "0.7"
+
+# Input simulation (for playback)
+inputbot = "0.6"
+
 [workspace.lints.rust]
 # Enable strict lints
 unsafe_code = "forbid"

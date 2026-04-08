@@ -14,8 +14,17 @@ interface ChannelFormData {
   priority: number;
 }
 
-export default function SettingsModal() {
-  const [isOpen, setIsOpen] = useState(false);
+interface SettingsModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function SettingsModal({ isOpen: propsIsOpen, onClose: propsOnClose }: SettingsModalProps = {}) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = propsIsOpen !== undefined ? propsIsOpen : internalIsOpen;
+  const setIsOpen = propsOnClose ? (value: boolean) => {
+    if (!value) propsOnClose();
+  } : setInternalIsOpen;
   const [activeTab, setActiveTab] = useState<TabType>('general');
   const [config, setConfig] = useState<Config | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -78,7 +87,11 @@ export default function SettingsModal() {
       await invoke('set_api_key', { apiKey });
       localStorage.setItem('api_key', apiKey);
       await loadAllData();
-      setIsOpen(false);
+      if (propsOnClose) {
+        propsOnClose();
+      } else {
+        setIsOpen(false);
+      }
     } catch (error) {
       alert('Failed to save API key');
     } finally {
@@ -172,7 +185,13 @@ export default function SettingsModal() {
         <div className="flex items-center justify-between p-4 border-b border-zinc-800">
           <h2 className="text-xl font-semibold">Settings</h2>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              if (propsOnClose) {
+                propsOnClose();
+              } else {
+                setIsOpen(false);
+              }
+            }}
             className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -603,7 +622,13 @@ export default function SettingsModal() {
             Press <kbd className="px-2 py-1 bg-zinc-800 rounded text-xs">Ctrl</kbd> + <kbd className="px-2 py-1 bg-zinc-800 rounded text-xs">,</kbd> to open settings
           </div>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              if (propsOnClose) {
+                propsOnClose();
+              } else {
+                setIsOpen(false);
+              }
+            }}
             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
           >
             Close

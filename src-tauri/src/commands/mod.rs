@@ -1,7 +1,14 @@
-pub mod chat;
+pub mod agents;
 pub mod channel;
+pub mod channel_accounts;
+pub mod chat;
+pub mod chat_v2;
 pub mod command_exec;
+pub mod cron;
 pub mod file_ops;
 pub mod hotkey;
+pub mod ollama;
 pub mod plugin;
 pub mod settings;
+pub mod wasm;
+pub mod anthropic;

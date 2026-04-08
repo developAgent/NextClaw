@@ -41,7 +41,11 @@ derive_more = { version = "0.99", features = ["display", "error"] }
 futures = "0.3"
 pin-project = "1.1"
 shlex = "1.1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+wasmtime = "23.0"
+base64 = "0.22"
+semver = "1.0"
+cron = "0.12"
 
 [features]
 # This feature is used for production builds or when `devPath` points to the filesystem
