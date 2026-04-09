@@ -226,6 +226,90 @@ impl Database {
             [],
         ).map_err(|e| AppError::Database(format!("Failed to create secure_storage table: {e}")))?;
 
+        // --- Gateway Config Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS gateway_config (
+                id TEXT PRIMARY KEY,
+                auto_start INTEGER NOT NULL DEFAULT 1,
+                token TEXT,
+                port INTEGER NOT NULL DEFAULT 18789,
+                proxy_enabled INTEGER NOT NULL DEFAULT 0,
+                proxy_server TEXT,
+                proxy_http_server TEXT,
+                proxy_https_server TEXT,
+                proxy_all_server TEXT,
+                proxy_bypass_rules TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create gateway_config table: {e}")))?;
+
+        // --- Skill Marketplace Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS skill_marketplace (
+                slug TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                version TEXT,
+                description TEXT,
+                author TEXT,
+                icon TEXT,
+                installed INTEGER NOT NULL DEFAULT 0,
+                installed_at TEXT,
+                installed_path TEXT
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create skill_marketplace table: {e}")))?;
+
+        // --- Skill Config Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS skill_config (
+                skill_key TEXT PRIMARY KEY,
+                api_key TEXT,
+                env_vars TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                config_path TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create skill_config table: {e}")))?;
+
+        // --- Token Usage Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_usage (
+                id TEXT PRIMARY KEY,
+                session_id TEXT,
+                agent_id TEXT,
+                model_id TEXT,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create token_usage table: {e}")))?;
+
+        // --- App Logs Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS app_logs (
+                id TEXT PRIMARY KEY,
+                level TEXT NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                context TEXT
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create app_logs table: {e}")))?;
+
         // --- Indexes for better performance ---
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)",
@@ -246,6 +330,42 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled)",
             [],
         ).map_err(|e| AppError::Database(format!("Failed to create skills index: {e}")))?;
+
+        // --- New indexes for ClawX functionality ---
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_gateway_config ON gateway_config(auto_start)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create gateway_config index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_skill_marketplace_installed ON skill_marketplace(installed)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create skill_marketplace index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_skill_config_enabled ON skill_config(enabled)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create skill_config index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_usage_session ON token_usage(session_id)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_usage_agent ON token_usage(agent_id)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_logs_timestamp ON app_logs(timestamp)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
 
         debug!("Database schema initialized successfully");
         Ok(())

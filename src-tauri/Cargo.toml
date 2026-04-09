@@ -14,6 +14,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Workspace dependencies
 tauri.workspace = true
 tauri-plugin-shell.workspace = true
+tauri-plugin-updater.workspace = true
+tauri-plugin-notification.workspace = true
 tokio.workspace = true
 rusqlite.workspace = true
 tracing.workspace = true
@@ -47,6 +49,13 @@ base64 = "0.22"
 semver = "1.0"
 cron = "0.12"
 bytes = "1.0"
+
+# Keychain storage
+keyring.workspace = true
+
+# i18n
+rust-i18n.workspace = true
+rust-embed.workspace = true
 
 [features]
 # This feature is used for production builds or when `devPath` points to the filesystem

@@ -12,6 +12,8 @@ license = "MIT"
 # Tauri
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-notification = "2"
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
@@ -78,6 +80,13 @@ screenshots = "0.7"
 
 # Input simulation (for playback)
 inputbot = "0.6"
+
+# Keychain storage
+keyring = "3.0"
+
+# i18n
+rust-i18n = "0.4"
+rust-embed = "8.0"
 
 [workspace.lints.rust]
 # Enable strict lints

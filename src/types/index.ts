@@ -107,3 +107,125 @@ export interface Hotkey {
 }
 
 export type MessageType = 'user' | 'assistant' | 'system';
+
+// Proxy types
+export type ProxyType = 'http' | 'https' | 'socks5';
+
+export interface ProxyConfig {
+  enabled: boolean;
+  server: string;
+  port: number;
+  username?: string;
+  password?: string;
+  proxyType: ProxyType;
+  bypassRules: string[];
+}
+
+export interface TestResult {
+  success: boolean;
+  latencyMs: number;
+  message: string;
+}
+
+// Update types
+export interface UpdateInfo {
+  version: string;
+  body: string;
+  date: string;
+}
+
+export interface DownloadProgress {
+  totalLength?: number;
+  currentLength?: number;
+  chunkLength: number;
+}
+
+export interface UpdateStatus {
+  isChecking: boolean;
+  isDownloading: boolean;
+}
+
+// Gateway types
+export interface GatewayStatus {
+  running: boolean;
+  pid?: number;
+  port: number;
+  uptime: number;
+  token?: string;
+  controlUrl: string;
+}
+
+export interface GatewayConfig {
+  autoStart: boolean;
+  token?: string;
+  port: number;
+  proxyEnabled: boolean;
+  proxyServer?: string;
+  proxyBypassRules: string[];
+}
+
+// Marketplace types
+export interface SkillMetadata {
+  slug: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  icon?: string;
+  tags: string[];
+  dependencies: string[];
+}
+
+export interface InstalledSkill {
+  slug: string;
+  installedAt: string;
+  installedPath: string;
+}
+
+// Developer tools types
+export type DiagnosticStatus = 'healthy' | 'warning' | 'critical';
+
+export interface DiagnosticCheck {
+  name: string;
+  status: DiagnosticStatus;
+  message: string;
+  details?: string;
+}
+
+export interface DiagnosticInfo {
+  status: DiagnosticStatus;
+  checks: DiagnosticCheck[];
+  summary: string;
+}
+
+export interface TelemetryData {
+  sessionId: string;
+  agentId?: string;
+  modelId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  timestamp: string;
+}
+
+export interface TokenUsageStats {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalRequests: number;
+}
+
+export interface LogEntry {
+  id: string;
+  level: string;
+  message: string;
+  timestamp: string;
+  context?: string;
+}
+
+export interface SystemInfo {
+  os: string;
+  arch: string;
+  family: string;
+  version: string;
+}

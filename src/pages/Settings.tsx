@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon, Globe, Zap, Shield, Palette } from 'lucide-react';
+import { Settings as SettingsIcon, Globe, Zap, Shield, Palette, Network, Code } from 'lucide-react';
+import ProxySettings from '@/components/settings/ProxySettings';
+import DeveloperTools from '@/components/settings/DeveloperTools';
 
-type TabType = 'general' | 'providers' | 'skills' | 'appearance';
+type TabType = 'general' | 'providers' | 'skills' | 'network' | 'appearance' | 'developer';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('general');
@@ -10,7 +12,9 @@ export default function SettingsPage() {
     { id: 'general' as TabType, label: 'General', icon: SettingsIcon },
     { id: 'providers' as TabType, label: 'Providers', icon: Globe },
     { id: 'skills' as TabType, label: 'Skills', icon: Zap },
+    { id: 'network' as TabType, label: 'Network', icon: Network },
     { id: 'appearance' as TabType, label: 'Appearance', icon: Palette },
+    { id: 'developer' as TabType, label: 'Developer', icon: Code },
   ];
 
   return (
@@ -102,6 +106,13 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {activeTab === 'network' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Network Settings</h2>
+            <ProxySettings />
+          </div>
+        )}
+
         {activeTab === 'appearance' && (
           <div>
             <h2 className="text-2xl font-bold mb-6">Appearance</h2>
@@ -121,6 +132,13 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'developer' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Developer Tools</h2>
+            <DeveloperTools />
           </div>
         )}
       </div>

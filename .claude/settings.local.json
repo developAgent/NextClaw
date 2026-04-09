@@ -80,7 +80,17 @@
       "Bash(C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe:*)",
       "Bash(NEXU_SKIP_RUNTIME_POSTINSTALL=true pnpm install --no-frozen-lockfile)",
       "Bash(pnpm typecheck:*)",
-      "Bash(pnpm dev:*)"
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm dist:win)",
+      "Bash(pnpm build:*)",
+      "Bash(npx electron-builder:*)",
+      "Bash(ls -lht /e/project/nexu/apps/desktop/release/*.exe)",
+      "Bash(7z a:*)",
+      "Bash(npx electron-builder@26.8.1 build --win --x64 --config.asar=false --config.compression=store --config.directories.output=release --publish never)",
+      "Bash(ls:*)",
+      "Bash(tee tauri-build.log)",
+      "Bash(grep -B5 \"no method named \\\\`query\\\\` found for reference\")",
+      "Bash(grep -A5 \"no method named \\\\`query\\\\` found for reference.*Connection\")"
     ]
   }
 }
