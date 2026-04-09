@@ -7,6 +7,7 @@ use cron::Schedule;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::Duration;
@@ -187,6 +188,7 @@ impl CronScheduler {
 
         let jobs = stmt
             .query_map([], |row| {
+                #[allow(clippy::too_many_arguments)]
                 Ok(CronJob {
                     id: row.get(0)?,
                     name: row.get(1)?,
@@ -196,15 +198,16 @@ impl CronScheduler {
                     cron_expression: row.get(5)?,
                     message: row.get(6)?,
                     target_config: row.get(7)?,
-                    enabled: row.get::<i32, _>(8)? != 0,
+                    enabled: row.get::<_, i32>(8)? != 0,
                     last_run: row.get(9)?,
                     next_run: row.get(10)?,
                     created_at: row.get(11)?,
                     updated_at: row.get(12)?,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AppError::Database(format!("Failed to map jobs: {}", e)))?;
+            .map_err(|e| AppError::Database(format!("Failed to load jobs: {}", e)))?
+            .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
+            .map_err(|e| AppError::Database(format!("Failed to collect jobs: {}", e)))?;
 
         let mut jobs_map = self.jobs.write().await;
         jobs_map.clear();
@@ -218,13 +221,13 @@ impl CronScheduler {
 
     /// Create a new cron job
     pub async fn create_job(&self, request: CreateCronJobRequest) -> Result<CronJob> {
-        let job = CronJob::new(&request.name, &request.agent_id, &request.cron_expression, &request.message)
+        let mut job = CronJob::new(&request.name, &request.agent_id, &request.cron_expression, &request.message)
             .with_description(request.description.unwrap_or_default())
             .with_channel_account(request.channel_account_id.unwrap_or_default())
             .with_target_config(request.target_config.unwrap_or_default());
 
         if !request.enabled.unwrap_or(true) {
-            job.disabled();
+            job = job.disabled();
         }
 
         // Parse and validate cron expression
@@ -235,7 +238,7 @@ impl CronScheduler {
         let now = Utc::now();
         let next_run = schedule.upcoming(Utc).next();
         let next_run_str = next_run
-            .map(|dt| dt.with_timezone(&chrono::Utc).to_rfc3339())
+            .map(|dt: DateTime<chrono::Utc>| dt.to_rfc3339())
             .unwrap_or_else(|| Utc::now().to_rfc3339());
 
         let db = self.db.lock().await;
@@ -267,18 +270,18 @@ impl CronScheduler {
         // Update job with next run time
         let job_with_next = CronJob {
             next_run: Some(next_run_str),
-            ..job
+            ..job.clone()
         };
 
         // Update in-memory cache
         let mut jobs = self.jobs.write().await;
-        jobs.insert(job.id.clone(), job_with_next.clone());
+        jobs.insert(job_with_next.id.clone(), job_with_next.clone());
 
         // Update schedule cache
         let mut schedules = self.schedules.write().await;
-        schedules.insert(job.id.clone(), schedule);
+        schedules.insert(job_with_next.id.clone(), schedule);
 
-        info!("Created cron job: {}", job.name);
+        info!("Created cron job: {}", job_with_next.name);
         Ok(job_with_next)
     }
 
@@ -296,7 +299,7 @@ impl CronScheduler {
 
     /// Update a job
     pub async fn update_job(&self, request: UpdateCronJobRequest) -> Result<CronJob> {
-        let mut job = self.get_job(&request.id)?
+        let mut job = self.get_job(&request.id).await?
             .ok_or_else(|| AppError::Validation(format!("Job not found: {}", request.id)))?;
 
         // Update fields
@@ -313,17 +316,17 @@ impl CronScheduler {
             job.channel_account_id = Some(account_id);
         }
         if let Some(cron_expr) = request.cron_expression {
-            job.cron_expression = cron_expr;
+            job.cron_expression = cron_expr.clone();
 
             // Re-parse schedule
-            let schedule = Schedule::from_str(&cron_expr)
+            let schedule = Schedule::from_str(&job.cron_expression)
                 .map_err(|e| AppError::Validation(format!("Invalid cron expression: {}", e)))?;
 
             // Update next run time
             let now = Utc::now();
             let next_run = schedule.upcoming(Utc).next();
             let next_run_str = next_run
-                .map(|dt| dt.with_timezone(&chrono::Utc).to_rfc3339())
+                .map(|dt: DateTime<chrono::Utc>| dt.to_rfc3339())
                 .unwrap_or_else(|| Utc::now().to_rfc3339());
             job.next_run = Some(next_run_str);
 
@@ -409,6 +412,10 @@ impl CronScheduler {
         *running.lock().await = true;
         info!("Cron scheduler started");
 
+        let jobs_cache = self.jobs.clone();
+        let schedules_cache = self.schedules.clone();
+        let db_cache = self.db.clone();
+
         tokio::spawn(async move {
             loop {
                 if !*running.lock().await {
@@ -418,7 +425,7 @@ impl CronScheduler {
                 // Check for jobs that need to run
                 let now = Utc::now();
 
-                let jobs = self.jobs.read().await;
+                let jobs = jobs_cache.read().await;
                 let jobs_to_run: Vec<(String, CronJob)> = jobs
                     .iter()
                     .filter(|(_, job)| {
@@ -436,32 +443,33 @@ impl CronScheduler {
                     })
                     .map(|(id, job)| (id.clone(), job.clone()))
                     .collect();
+                drop(jobs);
 
                 if !jobs_to_run.is_empty() {
                     debug!("Found {} jobs to run", jobs_to_run.len());
 
                     for (job_id, job) in jobs_to_run {
                         // Execute job in a separate task
-                        let db = self.db.clone();
-                        let jobs_cache = self.jobs.clone();
-                        let schedules_cache = self.schedules.clone();
+                        let db = db_cache.clone();
+                        let jobs_inner = jobs_cache.clone();
+                        let schedules = schedules_cache.clone();
                         let running_clone = running.clone();
 
                         tokio::spawn(async move {
                             // Update job state
                             {
-                                let mut jobs = jobs_cache.write().await;
+                                let mut jobs = jobs_inner.write().await;
                                 if let Some(job) = jobs.get_mut(&job_id) {
                                     job.last_run = Some(Utc::now().to_rfc3339());
 
                                     // Calculate next run time
                                     if let Some(schedule) = {
-                                        let schedules = schedules_cache.read().await;
-                                        schedules.get(&job_id).cloned()
+                                        let schedules_read = schedules.read().await;
+                                        schedules_read.get(&job_id).cloned()
                                     } {
                                         let next_run = schedule.upcoming(Utc).next();
                                         let next_run_str = next_run
-                                            .map(|dt| dt.with_timezone(&chrono::Utc).to_rfc3339())
+                                            .map(|dt: DateTime<chrono::Utc>| dt.to_rfc3339())
                                             .unwrap_or_else(|| Utc::now().to_rfc3339());
                                         job.next_run = Some(next_run_str);
                                     }
@@ -544,29 +552,32 @@ impl CronScheduler {
                 "SELECT id, job_id, status, started_at, completed_at, output, error
                  FROM cron_executions WHERE job_id = ?1 ORDER BY started_at DESC {}",
                 limit_clause
-            )
+            ).as_str()
         ).map_err(|e| AppError::Database(format!("Failed to query executions: {}", e)))?;
 
         let executions = stmt
             .query_map(params![job_id], |row| {
-                Ok(CronExecution {
-                    id: row.get(0)?,
-                    job_id: row.get(1)?,
-                    status: match row.get::<&str, _>(2)?.as_str() {
+                let status_str: String = row.get(2)?;
+                let status = match status_str.as_str() {
                     "pending" => CronExecutionStatus::Pending,
                     "running" => CronExecutionStatus::Running,
                     "success" => CronExecutionStatus::Success,
                     "failed" => CronExecutionStatus::Failed,
                     _ => CronExecutionStatus::Failed,
-                },
+                };
+                Ok(CronExecution {
+                    id: row.get(0)?,
+                    job_id: row.get(1)?,
+                    status,
                     started_at: row.get(3)?,
                     completed_at: row.get(4)?,
                     output: row.get(5)?,
                     error: row.get(6)?,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AppError::Database(format!("Failed to map executions: {}", e)))?;
+            .map_err(|e| AppError::Database(format!("Failed to query executions: {}", e)))?
+            .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
+            .map_err(|e| AppError::Database(format!("Failed to collect executions: {}", e)))?;
 
         debug!("Retrieved {} executions for job {}", executions.len(), job_id);
         Ok(executions)

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use std::time::Duration;
@@ -217,32 +218,29 @@ impl OllamaClient {
             anyhow::bail!("Streaming chat request failed: {}", response.status());
         }
 
-        let stream = response.bytes_stream().map(|bytes| {
-            bytes.context("Failed to read stream")?
-                .split(|&b| b == b'\n')
-                .filter_map(|line| {
-                    if line.is_empty() {
-                        None
-                    } else {
-                        Some(String::from_utf8(line.to_vec()).context("Invalid UTF-8"))
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .map(|line| {
-                    let chunk: serde_json::Value = serde_json::from_str(&line)
-                        .context("Failed to parse JSON chunk")?;
-                    chunk["message"]["content"]
-                        .as_str()
-                        .map(|s| Ok(s.to_string()))
-                        .unwrap_or_else(|| Ok(String::new()))
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?
-        }).flatten();
+        let stream = response.bytes_stream()
+            .map(move |bytes_result| -> Result<Vec<String>> {
+                let bytes = bytes_result.context("Failed to read stream")?;
+                let text = String::from_utf8_lossy(&bytes);
+                let lines: Vec<String> = text
+                    .lines()
+                    .filter(|line| !line.is_empty())
+                    .map(|line| line.to_string())
+                    .collect();
+                Ok(lines)
+            })
+            .map_ok(move |lines| futures::stream::iter(lines).map(move |line| -> Result<String> {
+                let chunk: serde_json::Value = serde_json::from_str(&line)
+                    .context("Failed to parse JSON chunk")?;
+                let content = chunk["message"]["content"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                Ok(content)
+            }))
+            .try_flatten();
 
-        Ok(futures::stream::iter(stream))
+        Ok(stream)
     }
 
     /// Generate completion from a prompt
@@ -303,7 +301,9 @@ impl OllamaClient {
 
         let vector = embedding
             .iter()
-            .map(|v| v.as_f64().context("Not a float")?.map(|f| f as f32))
+            .map(|v| v.as_f64()
+                .ok_or_else(|| anyhow::anyhow!("Not a float"))
+                .map(|f| f as f32))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(vector)

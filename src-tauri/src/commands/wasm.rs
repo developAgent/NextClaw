@@ -10,8 +10,8 @@ use tracing::info;
 
 /// Check if WASM host is initialized
 #[tauri::command]
-pub async fn wasm_host_initialized(host: State<'_, Arc<WasmHost>>) -> bool {
-    host.list_skills().await.len() > 0
+pub async fn wasm_host_initialized(host: State<'_, Arc<WasmHost>>) -> Result<bool> {
+    Ok(host.list_skills().await.len() > 0)
 }
 
 /// List all registered WASM skills
@@ -90,6 +90,6 @@ pub async fn wasm_unregister_skill(
 pub async fn wasm_is_skill_registered(
     skill_id: String,
     host: State<'_, Arc<WasmHost>>,
-) -> bool {
-    host.is_skill_registered(&skill_id).await
+) -> Result<bool> {
+    Ok(host.is_skill_registered(&skill_id).await)
 }

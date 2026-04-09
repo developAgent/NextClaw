@@ -59,7 +59,7 @@ pub enum WasmArgument {
     #[serde(rename = "array")]
     Array(Vec<WasmArgument>),
     #[serde(rename = "object")]
-    Object(serde_json::Map<String, WasmArgument>),
+    Object(std::collections::HashMap<String, WasmArgument>),
     #[serde(rename = "null")]
     Null,
 }
@@ -81,7 +81,7 @@ impl WasmModule {
 
         // Validate manifest
         manifest.validate()
-            .context("Invalid skill manifest")?;
+            .map_err(|e| anyhow::anyhow!("Invalid skill manifest: {}", e))?;
 
         Ok(Self { bytes, manifest })
     }
@@ -89,7 +89,7 @@ impl WasmModule {
     /// Load a WASM module from a file
     pub fn from_file(path: PathBuf, manifest: SkillManifest) -> Result<Self> {
         let bytes = std::fs::read(&path)
-            .context(format!("Failed to read WASM file: {:?}", path))?;
+            .map_err(|e| anyhow::anyhow!("Failed to read WASM file: {:?}", path).context(e))?;
 
         Self::new(bytes, manifest)
     }

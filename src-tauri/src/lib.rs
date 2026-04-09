@@ -152,13 +152,13 @@ pub fn run() {
             app.manage(channel_manager.clone());
 
             // Initialize Agent manager
-            app.manage(Arc::new(AgentManager::new(db.clone())));
+            app.manage(Arc::new(AgentManager::new(db.conn())));
 
             // Initialize Channel Account manager
-            app.manage(Arc::new(ChannelAccountManager::new(db.clone())));
+            app.manage(Arc::new(ChannelAccountManager::new(db.conn())));
 
             // Initialize Cron scheduler
-            let cron_scheduler = Arc::new(CronScheduler::new(db.clone()));
+            let cron_scheduler = Arc::new(CronScheduler::new(db.conn()));
             app.manage(cron_scheduler.clone());
             info!("Cron scheduler initialized");
 

@@ -91,7 +91,9 @@ pub fn delete_session(
     let session_uuid = Uuid::parse_str(&session_id)
         .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid session ID: {e}")))?;
 
-    db.execute(
+    let conn = db.conn();
+    let conn_guard = conn.blocking_lock();
+    conn_guard.execute(
         "DELETE FROM sessions WHERE id = ?1",
         &[&session_uuid.to_string()]
     ).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
@@ -102,7 +104,9 @@ pub fn delete_session(
 // Helper functions
 
 fn store_message(db: &Database, session_id: Uuid, message: &Message) -> Result<()> {
-    db.execute(
+    let conn = db.conn();
+    let conn_guard = conn.blocking_lock();
+    conn_guard.execute(
         r#"
         INSERT INTO messages (id, session_id, role, content)
         VALUES (?1, ?2, ?3, ?4)
@@ -149,7 +153,9 @@ fn get_session_history(db: &Database, session_id: Uuid) -> Result<Vec<Message>> 
 }
 
 fn save_session(db: &Database, session: &Session) -> Result<()> {
-    db.execute(
+    let conn = db.conn();
+    let conn_guard = conn.blocking_lock();
+    conn_guard.execute(
         r#"
         INSERT INTO sessions (id, title, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4)

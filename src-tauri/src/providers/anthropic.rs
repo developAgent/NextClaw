@@ -382,14 +382,17 @@ impl AnthropicProvider {
         // Parse SSE stream
         let stream = stream.map(|chunk_result: Result<bytes::Bytes, reqwest::Error>| {
             chunk_result.and_then(|bytes| {
-                let text = String::from_utf8_lossy(&bytes);
+                let text = String::from_utf8_lossy(&bytes).into_owned();
                 Ok(text)
             })
         });
 
         Ok(futures::stream::unfold(stream, |mut stream| async move {
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk?;
+            while let Some(chunk_result) = stream.next().await {
+                let chunk = match chunk_result {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
                 for line in chunk.lines() {
                     if line.starts_with("data: ") {
                         let data = &line[6..];
@@ -401,7 +404,8 @@ impl AnthropicProvider {
             }
             None
         })
-        .filter_map(|r| async { r }))
+        .map(|r| Some(r))
+        .filter_map(futures::future::ready))
     }
 
     /// Validate API key by making a simple request

@@ -53,7 +53,7 @@ pub struct ModelInfoPayload {
 /// OpenAI client state
 #[derive(Clone)]
 pub struct OpenAIState {
-    pub provider: Arc<Mutex<Option<OpenAIProvider>>>,
+    pub provider: Arc<Mutex<Option<Arc<OpenAIProvider>>>>,
 }
 
 /// Create a chat completion
@@ -72,16 +72,18 @@ pub async fn create_chat_completion(
     // Convert payload to internal types
     let messages: Vec<ChatMessage> = request.messages
         .into_iter()
-        .map(|m| ChatMessage {
-            role: match m.role.as_str() {
-                "system" => MessageRole::System,
-                "user" => MessageRole::User,
-                "assistant" => MessageRole::Assistant,
-                _ => return Err(AppError::Validation(format!("Invalid role: {}", m.role))),
-            },
-            content: m.content,
+        .map(|m| -> Result<ChatMessage> {
+            Ok(ChatMessage {
+                role: match m.role.as_str() {
+                    "system" => MessageRole::System,
+                    "user" => MessageRole::User,
+                    "assistant" => MessageRole::Assistant,
+                    _ => return Err(AppError::Validation(format!("Invalid role: {}", m.role))),
+                },
+                content: m.content,
+            })
         })
-        .collect();
+        .collect::<std::result::Result<Vec<_>, _>>()?;
 
     let mut completion_request = ChatCompletionRequest::new(request.model, messages);
 
@@ -140,7 +142,7 @@ pub async fn list_models(
     let models: Vec<ModelInfoPayload> = models_response.data
         .into_iter()
         .map(|m| ModelInfoPayload {
-            id: m.id,
+            id: m.id.clone(),
             display_name: m.id,
             context_window: None, // Could be fetched from API if available
         })

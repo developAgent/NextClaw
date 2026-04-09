@@ -59,7 +59,28 @@
       "Bash(where cargo:*)",
       "Bash(ls -la E:/project/NextClaw/target/release/*.exe)",
       "Bash(E:/project/NextClaw/target/release/ceo-claw.exe:*)",
-      "Bash(export PATH=\"/c/Users/Administrator/.rustup/toolchains/stable-x86_64-pc-windows-msvc/bin:$PATH\")"
+      "Bash(export PATH=\"/c/Users/Administrator/.rustup/toolchains/stable-x86_64-pc-windows-msvc/bin:$PATH\")",
+      "Bash(sed:*)",
+      "Bash(sed -i 's/\\\\.query_map\\(/\\\\n            .query_map\\(/g' src/agents/mod.rs)",
+      "Bash(sed -i 's/            \\\\.query_map\\(\\\\[\\\\], |row| {/            .query_map\\(\\\\[\\\\], |row| {\\\\n                #[allow\\(clippy::too_many_arguments\\)]/g' src/agents/mod.rs)",
+      "Bash(chmod +x /tmp/fix_query_map.sh)",
+      "Bash(/tmp/fix_query_map.sh)",
+      "Bash(ls -lth /d/TEMP/claude/E--project/NextClaw/21433fe8-6400-4c3e-b526-980880d6c646/tasks/*.output)",
+      "Bash(E:/project/NextClaw/target/release/bundle/msi/CEOClaw_0.1.0_x64_en-US.msi:*)",
+      "Read(//e/project/nexu/**)",
+      "Bash(dir \"E:\\\\project\\\\nexu\")",
+      "Read(//e/project/ClawX/**)",
+      "Bash(dir \"E:\\\\project\\\\ClawX\")",
+      "Bash(git clone:*)",
+      "Bash(pnpm install:*)",
+      "Bash(CI=true pnpm install)",
+      "Bash(python bmad_init.py check --project-root \"E:\\\\project\\\\NextClaw\")",
+      "Bash(python:*)",
+      "Bash(where python:*)",
+      "Bash(C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe:*)",
+      "Bash(NEXU_SKIP_RUNTIME_POSTINSTALL=true pnpm install --no-frozen-lockfile)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm dev:*)"
     ]
   }
 }

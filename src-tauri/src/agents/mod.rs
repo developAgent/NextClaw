@@ -147,6 +147,7 @@ impl AgentManager {
 
         let agents = stmt
             .query_map([], |row| {
+                #[allow(clippy::too_many_arguments)]
                 Ok(Agent {
                     id: row.get(0)?,
                     name: row.get(1)?,
@@ -160,7 +161,8 @@ impl AgentManager {
                     updated_at: row.get(9)?,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(format!("Failed to query agents: {}", e)))?
+            .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
             .map_err(|e| AppError::Database(format!("Failed to map agents: {}", e)))?;
 
         debug!("Retrieved {} agents", agents.len());
@@ -201,40 +203,41 @@ impl AgentManager {
 
         // Build dynamic update query
         let mut updates = vec![];
-        let mut params = vec![];
+        let mut params: Vec<Box<dyn rusqlite::ToSql + Send>> = vec![];
 
         if let Some(name) = &request.name {
             updates.push("name = ?");
-            params.push(name as &dyn rusqlite::ToSql);
+            params.push(Box::new(name.clone()));
         }
         if let Some(desc) = &request.description {
             updates.push("description = ?");
-            params.push(desc as &dyn rusqlite::ToSql);
+            params.push(Box::new(desc.clone()));
         }
         if let Some(provider) = &request.provider_id {
             updates.push("provider_id = ?");
-            params.push(provider as &dyn rusqlite::ToSql);
+            params.push(Box::new(provider.clone()));
         }
         if let Some(model) = &request.model_id {
             updates.push("model_id = ?");
-            params.push(model as &dyn rusqlite::ToSql);
+            params.push(Box::new(model.clone()));
         }
         if let Some(prompt) = &request.system_prompt {
             updates.push("system_prompt = ?");
-            params.push(prompt as &dyn rusqlite::ToSql);
+            params.push(Box::new(prompt.clone()));
         }
         if let Some(temp) = request.temperature {
             updates.push("temperature = ?");
-            params.push(&temp);
+            params.push(Box::new(temp));
         }
         if let Some(tokens) = request.max_tokens {
             updates.push("max_tokens = ?");
-            params.push(&tokens);
+            params.push(Box::new(tokens));
         }
 
         updates.push("updated_at = ?");
-        params.push(&chrono::Utc::now().to_rfc3339());
-        params.push(&request.id);
+        let now = chrono::Utc::now().to_rfc3339();
+        params.push(Box::new(now.clone()));
+        params.push(Box::new(request.id.clone()));
 
         let query = format!(
             "UPDATE agents SET {} WHERE id = ?{}",

@@ -6,8 +6,8 @@ use tracing::info;
 
 /// Check if Ollama is connected
 #[tauri::command]
-pub async fn ollama_check_connection(manager: State<'_, OllamaManager>) -> bool {
-    manager.is_connected().await
+pub async fn ollama_check_connection(manager: State<'_, OllamaManager>) -> Result<bool> {
+    Ok(manager.is_connected().await)
 }
 
 /// List all available Ollama models

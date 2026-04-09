@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result as SqliteResult};
+use rusqlite::{Connection, params, Result as SqliteResult};
 use secrecy::{ExposeSecret, Secret, SecretString};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -268,6 +268,53 @@ impl Database {
     {
         let conn = self.conn.blocking_lock();
         f(&conn).map_err(|e| AppError::Database(e.to_string()))
+    }
+
+    /// Get a secret from secure storage
+    pub fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
+        let conn = self.conn.blocking_lock();
+        let mut stmt = conn
+            .prepare("SELECT encrypted_value FROM secure_storage WHERE id = ?1")
+            .map_err(|e| AppError::Database(format!("Failed to get secret: {}", e)))?;
+
+        let result = stmt
+            .query_row(params![key], |row| row.get::<_, String>(0))
+            .ok();
+
+        Ok(result.map(|s| SecretString::new(s)))
+    }
+
+    /// Set a secret in secure storage
+    pub fn set_secret(&self, key: &str, secret: SecretString) -> Result<()> {
+        let conn = self.conn.blocking_lock();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        conn.execute(
+            r#"
+            INSERT OR REPLACE INTO secure_storage (id, service, account_id, encrypted_value, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![
+                key,
+                "system",
+                Option::<&str>::None,
+                secret.expose_secret(),
+                &now,
+                &now,
+            ],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to set secret: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Delete a secret from secure storage
+    pub fn delete_config(&self, key: &str) -> Result<()> {
+        let conn = self.conn.blocking_lock();
+        conn.execute("DELETE FROM secure_storage WHERE id = ?1", params![key])
+            .map_err(|e| AppError::Database(format!("Failed to delete config: {}", e)))?;
+
+        Ok(())
     }
 }
 

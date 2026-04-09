@@ -56,7 +56,7 @@ const ANTHROPIC_MODELS: &[&str] = &[
 /// Anthropic client state
 #[derive(Clone)]
 pub struct AnthropicState {
-    pub provider: Arc<Mutex<Option<AnthropicProvider>>>,
+    pub provider: Arc<Mutex<Option<Arc<AnthropicProvider>>>>,
 }
 
 /// Create an Anthropic message
@@ -75,15 +75,17 @@ pub async fn create_anthropic_message(
     // Convert payload to internal types
     let messages: Vec<AnthropicMessage> = request.messages
         .into_iter()
-        .map(|m| AnthropicMessage {
-            role: match m.role.as_str() {
-                "user" => AnthropicMessageRole::User,
-                "assistant" => AnthropicMessageRole::Assistant,
-                _ => return Err(AppError::Validation(format!("Invalid role: {}", m.role))),
-            },
-            content: crate::providers::AnthropicMessageContent::Text(m.content),
+        .map(|m| -> Result<AnthropicMessage> {
+            Ok(AnthropicMessage {
+                role: match m.role.as_str() {
+                    "user" => AnthropicMessageRole::User,
+                    "assistant" => AnthropicMessageRole::Assistant,
+                    _ => return Err(AppError::Validation(format!("Invalid role: {}", m.role))),
+                },
+                content: crate::providers::AnthropicMessageContent::Text(m.content),
+            })
         })
-        .collect();
+        .collect::<std::result::Result<Vec<_>, _>>()?;
 
     let mut message_request = MessageCreateRequest::new(request.model, messages);
 
@@ -129,7 +131,7 @@ pub async fn create_anthropic_message(
 /// List available Anthropic models
 #[tauri::command]
 pub async fn list_anthropic_models() -> Result<Vec<String>> {
-    Ok(ANTHROPIC_MODELS.to_vec())
+    Ok(ANTHROPIC_MODELS.iter().map(|s| s.to_string()).collect())
 }
 
 /// Validate Anthropic API key
@@ -138,7 +140,7 @@ pub async fn validate_anthropic_api_key(api_key: String) -> Result<bool> {
     let config = AnthropicConfig::new(api_key)
         .with_model("claude-3-haiku-20240307");
 
-    let provider = AnthropicProvider::new(config)?;
+    let provider = Arc::new(AnthropicProvider::new(config)?);
 
     let is_valid = tokio::task::spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async {

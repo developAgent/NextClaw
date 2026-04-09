@@ -328,29 +328,33 @@ impl OpenAIProvider {
         // Parse SSE stream
         let stream = stream.map(|chunk| {
             chunk.and_then(|bytes| {
-                let text = String::from_utf8_lossy(&bytes);
+                let text = String::from_utf8_lossy(&bytes).into_owned();
                 Ok(text)
             })
         });
 
         Ok(futures::stream::unfold(stream, |mut stream| async {
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk?;
+            while let Some(chunk_result) = stream.next().await {
+                let chunk = match chunk_result {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
                 for line in chunk.lines() {
                     if line.starts_with("data: ") {
                         let data = &line[6..];
                         if data == "[DONE]" {
-                            return Some((None, stream));
+                            return None;
                         }
                         if let Ok(delta) = serde_json::from_str::<ChatCompletionDelta>(data) {
-                            return Some((Some(Ok(delta)), stream));
+                            return Some((Ok(delta), stream));
                         }
                     }
                 }
             }
             None
         })
-        .filter_map(|r| async { r }))
+        .map(|r| Some(r))
+        .filter_map(futures::future::ready))
     }
 
     /// Validate API key by making a simple request

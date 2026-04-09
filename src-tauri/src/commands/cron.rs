@@ -112,8 +112,8 @@ pub async fn run_cron_job(
     let result = crate::cron::CronScheduler::execute_job(&job).await;
 
     // Update execution record
-    let (status, output, error) = match result {
-        Ok(output) => ("success", Some(output), None::<String>),
+    let (status, output, error) = match &result {
+        Ok(output) => ("success", Some(output.clone()), None::<String>),
         Err(e) => ("failed", None::<String>, Some(e.to_string())),
     };
 

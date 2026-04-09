@@ -70,6 +70,9 @@ impl ChannelAccountManager {
 
     /// Create a new channel account
     pub async fn create_account(&self, request: CreateChannelAccountRequest) -> Result<ChannelAccount> {
+        let creds_json = serde_json::to_string(&request.credentials)
+            .map_err(|e| AppError::Internal(format!("Failed to serialize credentials: {}", e)))?;
+
         let account = ChannelAccount::new(&request.channel_id, &request.name)
             .with_credentials(request.credentials)?;
 
@@ -82,9 +85,6 @@ impl ChannelAccountManager {
                 params![&request.channel_id],
             ).map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
         }
-
-        let creds_json = serde_json::to_string(&request.credentials)
-            .map_err(|e| AppError::Internal(format!("Failed to serialize credentials: {}", e)))?;
 
         db.execute(
             r#"
@@ -121,12 +121,13 @@ impl ChannelAccountManager {
                     channel_id: row.get(1)?,
                     name: row.get(2)?,
                     credentials: row.get(3)?,
-                    is_default: row.get::<i32, _>(4)? != 0,
+                    is_default: row.get::<_, i32>(4)? != 0,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?
+            .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
             .map_err(|e| AppError::Database(format!("Failed to map accounts: {}", e)))?;
 
         Ok(accounts)
@@ -142,17 +143,19 @@ impl ChannelAccountManager {
 
         let accounts = stmt
             .query_map([], |row| {
+                #[allow(clippy::too_many_arguments)]
                 Ok(ChannelAccount {
                     id: row.get(0)?,
                     channel_id: row.get(1)?,
                     name: row.get(2)?,
                     credentials: row.get(3)?,
-                    is_default: row.get::<i32, _>(4)? != 0,
+                    is_default: row.get::<_, i32>(4)? != 0,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?
+            .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
             .map_err(|e| AppError::Database(format!("Failed to map accounts: {}", e)))?;
 
         Ok(accounts)
@@ -173,7 +176,7 @@ impl ChannelAccountManager {
                     channel_id: row.get(1)?,
                     name: row.get(2)?,
                     credentials: row.get(3)?,
-                    is_default: row.get::<i32, _>(4)? != 0,
+                    is_default: row.get::<_, i32>(4)? != 0,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
                 })
@@ -199,25 +202,26 @@ impl ChannelAccountManager {
 
         // Build dynamic update query
         let mut updates = vec![];
-        let mut params = vec![];
+        let mut params: Vec<Box<dyn rusqlite::ToSql + Send>> = vec![];
 
         if let Some(name) = &request.name {
             updates.push("name = ?");
-            params.push(name as &dyn rusqlite::ToSql);
+            params.push(Box::new(name.clone()));
         }
         if let Some(creds) = &request.credentials {
             updates.push("credentials = ?");
             let creds_json = serde_json::to_string(creds)
                 .map_err(|e| AppError::Internal(format!("Failed to serialize credentials: {}", e)))?;
-            params.push(creds_json);
+            params.push(Box::new(creds_json));
         }
         if let Some(is_default) = request.is_default {
             updates.push("is_default = ?");
-            params.push(&(is_default as i32));
+            params.push(Box::new(is_default as i32));
         }
         updates.push("updated_at = ?");
-        params.push(&chrono::Utc::now().to_rfc3339());
-        params.push(&request.id);
+        let now = chrono::Utc::now().to_rfc3339();
+        params.push(Box::new(now.clone()));
+        params.push(Box::new(request.id.clone()));
 
         let query = format!(
             "UPDATE channel_accounts SET {} WHERE id = ?{}",

@@ -216,19 +216,21 @@ fn list_files_recursive_helper(path: &str, files: &mut Vec<FileInfo>) -> Result<
 }
 
 fn save_file_operation(db: &Database, operation: &FileOperation) -> Result<()> {
-    db.execute(
+    let conn_arc = db.conn();
+    let conn = conn_arc.blocking_lock();
+    conn.execute(
         r#"
         INSERT INTO file_operations (id, session_id, operation, path, success, error)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
         "#,
-        &[
+        rusqlite::params![
             &operation.id.to_string(),
             &operation.session_id.to_string(),
             &operation.operation.as_str(),
             &operation.path,
-            &operation.success.to_string(),
-            &operation.error.as_ref().map_or("", String::as_str),
+            operation.success as i32,
+            &operation.error.as_ref().map_or("", |s| s.as_str()),
         ]
-    ).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+    ).map_err(|e: rusqlite::Error| crate::utils::error::AppError::Database(e.to_string()))?;
     Ok(())
 }

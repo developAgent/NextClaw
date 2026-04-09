@@ -39,7 +39,7 @@ pub struct WasmHost {
     db: Arc<Database>,
     permission_checker: Arc<Mutex<PermissionChecker>>,
     modules: Arc<RwLock<HashMap<String, WasmModule>>>,
-    runtimes: Arc<RwLock<HashMap<String, WasmRuntime>>>,
+    runtimes: Arc<RwLock<HashMap<String, Arc<WasmRuntime>>>>,
 }
 
 impl WasmHost {
@@ -132,10 +132,10 @@ impl WasmHost {
         }
 
         // Create a runtime for this skill
-        let runtime = WasmRuntime::new(
+        let runtime = Arc::new(WasmRuntime::new(
             crate::skills::runtime::WasmRuntimeConfig::default(),
             self.config.sandbox_config.clone(),
-        );
+        ));
         let mut runtimes = self.runtimes.write().await;
         runtimes.insert(skill_id.clone(), runtime);
 
@@ -181,18 +181,22 @@ impl WasmHost {
         args: Vec<WasmArgument>,
     ) -> Result<WasmExecutionResult> {
         // Get the module
-        let modules = self.modules.read().await;
-        let module = modules.get(skill_id)
-            .ok_or_else(|| AppError::Validation(format!("Skill not found: {}", skill_id)))?
-            .clone();
-        drop(modules);
+        let module = {
+            let guard = self.modules.read().await;
+            match guard.get(skill_id) {
+                Some(m) => m.clone(),
+                None => return Err(AppError::Validation(format!("Skill not found: {}", skill_id))),
+            }
+        };
 
         // Get the runtime
-        let runtimes = self.runtimes.read().await;
-        let runtime = runtimes.get(skill_id)
-            .ok_or_else(|| AppError::Validation(format!("Runtime not found for skill: {}", skill_id)))?
-            .clone();
-        drop(runtimes);
+        let runtime = {
+            let guard = self.runtimes.read().await;
+            match guard.get(skill_id) {
+                Some(r) => Arc::clone(r),
+                None => return Err(AppError::Validation(format!("Runtime not found for skill: {}", skill_id))),
+            }
+        };
 
         let function_owned = function.to_string();
 
@@ -200,7 +204,8 @@ impl WasmHost {
         tokio::task::spawn_blocking(move || {
             runtime.execute_module(&module, &function_owned, args)
                 .map_err(|e| AppError::Internal(format!("Skill execution failed: {}", e)))
-        }).await
+        })
+        .await
         .context("Failed to join execution task")?
     }
 
