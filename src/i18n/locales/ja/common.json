@@ -41,5 +41,182 @@
   "noResults": "結果が見つかりません",
   "viewAll": "すべて表示",
   "settingsSaved": "設定を保存しました",
-  "settingsFailed": "設定の保存に失敗しました"
+  "settingsFailed": "設定の保存に失敗しました",
+  "settingsPage": {
+    "title": "アプリケーション設定",
+    "subtitle": "ランタイム動作、Claude へのアクセス、インターフェース設定を管理します。",
+    "tabs": {
+      "general": "一般",
+      "providers": "プロバイダー",
+      "skills": "スキル",
+      "network": "ネットワーク",
+      "appearance": "外観",
+      "developer": "開発者"
+    },
+    "actions": {
+      "refresh": "更新",
+      "saveChanges": "変更を保存",
+      "saving": "保存中..."
+    },
+    "states": {
+      "unableToLoad": "設定を読み込めませんでした。"
+    },
+    "general": {
+      "execution": {
+        "title": "コマンド実行",
+        "timeout": "コマンドのタイムアウト（秒）",
+        "sandboxPath": "サンドボックスパス",
+        "allowShell": "シェルコマンドの実行を許可",
+        "requireConfirmation": "危険なコマンドの前に確認を求める"
+      },
+      "rules": {
+        "title": "コマンドルール",
+        "whitelist": "ホワイトリスト",
+        "blacklist": "ブラックリスト",
+        "placeholder": "1 行に 1 コマンド"
+      }
+    },
+    "providers": {
+      "title": "Claude プロバイダー",
+      "fields": {
+        "model": "モデル",
+        "requestTimeout": "リクエストタイムアウト（秒）",
+        "maxRetries": "最大再試行回数"
+      },
+      "actions": {
+        "save": "プロバイダー設定を保存",
+        "removeApiKey": "API キーを削除"
+      },
+      "apiKey": {
+        "title": "API キー",
+        "label": "Anthropic API キー",
+        "placeholder": {
+          "replace": "既存のキーを置き換える新しいキーを入力してください",
+          "empty": "sk-ant-..."
+        },
+        "status": {
+          "none": "API キーはまだ設定されていません",
+          "ready": "新しい API キーを保存できます",
+          "configured": "API キー設定済み"
+        }
+      }
+    },
+    "skills": {
+      "description": "スキルのインストール、有効化、ライフサイクル管理は専用の Skills ページに移動しました。そのページで WASM スキルのインストール、有効状態の切り替え、マニフェストの確認を行ってください。"
+    },
+    "network": {
+      "title": "ネットワーク設定"
+    },
+    "developer": {
+      "title": "開発者ツール"
+    },
+    "appearance": {
+      "title": "外観",
+      "languages": {
+        "en": "英語のインターフェースを使用します。",
+        "zh": "中国語のインターフェースを使用します。",
+        "ja": "日本語のインターフェースを使用します。"
+      },
+      "themes": {
+        "light": {
+          "label": "ライト",
+          "description": "ライトテーマを使用します。"
+        },
+        "dark": {
+          "label": "ダーク",
+          "description": "ダークテーマを使用します。"
+        },
+        "system": {
+          "label": "システム",
+          "description": "OS の設定に従います。"
+        }
+      },
+      "display": {
+        "title": "表示オプション",
+        "fontSize": "フォントサイズ",
+        "maxHistory": "履歴の上限",
+        "showTimestamps": "メッセージにタイムスタンプを表示"
+      }
+    }
+  },
+  "setup": {
+    "sidebar": {
+      "caption": "初回起動セットアップ",
+      "progress": "進行状況"
+    },
+    "steps": {
+      "welcome": {
+        "title": "ようこそ",
+        "description": "NextClaw を始めましょう"
+      },
+      "language": {
+        "title": "言語",
+        "description": "使用する言語を選択"
+      },
+      "provider": {
+        "title": "AI プロバイダー",
+        "description": "AI プロバイダーを設定"
+      },
+      "skills": {
+        "title": "スキル",
+        "description": "スキルバンドルを選択"
+      },
+      "verification": {
+        "title": "確認",
+        "description": "設定を確認"
+      }
+    },
+    "actions": {
+      "skip": "今はスキップ",
+      "getStarted": "開始する",
+      "continue": "続行",
+      "back": "戻る",
+      "openInstaller": "インストーラーを開く"
+    },
+    "welcome": {
+      "title": "NextClaw へようこそ",
+      "description": "ローカルランタイム、スキル、自動化に対応した ClawX 互換のデスクトップワークスペースです。",
+      "helper": "いくつかの基本設定を行ってから、インストーラーと製品シェルに進みます。"
+    },
+    "views": {
+      "language": {
+        "title": "使用する言語を選択",
+        "description": "インターフェースで使用する言語を選んでください。",
+        "selected": "選択中"
+      },
+      "provider": {
+        "title": "AI プロバイダーを設定",
+        "description": "メインのプロバイダーは後で Channels または Settings から追加できます。この手順では起動フローを軽量に保ちます。",
+        "preferredLabel": "推奨プロバイダー",
+        "preferredValue": "初回セットアップには Anthropic Claude を推奨します。",
+        "helper": "プロバイダーキーとアカウント連携は、オンボーディング後にメインシェルから安全に設定できます。"
+      },
+      "skills": {
+        "title": "スキルバンドルを選択",
+        "description": "まず試したいスキルカテゴリを選択してください。",
+        "bundles": {
+          "document": {
+            "name": "ドキュメント処理",
+            "description": "PDF、Excel、Word ファイルを処理"
+          },
+          "search": {
+            "name": "検索スキル",
+            "description": "Brave と Tavily のウェブ検索"
+          },
+          "agent": {
+            "name": "エージェントツール",
+            "description": "自己改善とスキル検索"
+          }
+        }
+      },
+      "verification": {
+        "title": "製品シェルを開く準備ができました",
+        "description": "初回設定の内容が保存されました。次は Installer ページでローカルランタイムを起動するのがおすすめです。",
+        "languageSet": "言語は {{language}} に設定されました",
+        "providerDeferred": "プロバイダー設定は完全な Settings と Channels ページに後回しされました",
+        "skillsSelected": "{{count}} 個のスキルバンドルを選択済み",
+        "noSkillsSelected": "まだスキルバンドルが選択されていません"
+      }
+    }
+  }
 }

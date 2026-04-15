@@ -16,13 +16,13 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'en', // default language
+    lng: 'en',
     fallbackLng: 'en',
     interpolation: {
-      escapeValue: false, // React already escapes
+      escapeValue: false,
     },
     react: {
-      useSuspense: false, // Disable Suspense for now
+      useSuspense: false,
     },
   });
 

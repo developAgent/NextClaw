@@ -41,5 +41,182 @@
   "noResults": "No results found",
   "viewAll": "View All",
   "settingsSaved": "Settings saved successfully",
-  "settingsFailed": "Failed to save settings"
+  "settingsFailed": "Failed to save settings",
+  "settingsPage": {
+    "title": "Application Settings",
+    "subtitle": "Manage runtime behavior, Claude access, and interface preferences.",
+    "tabs": {
+      "general": "General",
+      "providers": "Providers",
+      "skills": "Skills",
+      "network": "Network",
+      "appearance": "Appearance",
+      "developer": "Developer"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "saveChanges": "Save changes",
+      "saving": "Saving..."
+    },
+    "states": {
+      "unableToLoad": "Unable to load settings."
+    },
+    "general": {
+      "execution": {
+        "title": "Command execution",
+        "timeout": "Command timeout (seconds)",
+        "sandboxPath": "Sandbox path",
+        "allowShell": "Allow shell command execution",
+        "requireConfirmation": "Require confirmation before dangerous commands"
+      },
+      "rules": {
+        "title": "Command rules",
+        "whitelist": "Whitelist",
+        "blacklist": "Blacklist",
+        "placeholder": "One command per line"
+      }
+    },
+    "providers": {
+      "title": "Claude provider",
+      "fields": {
+        "model": "Model",
+        "requestTimeout": "Request timeout (seconds)",
+        "maxRetries": "Max retries"
+      },
+      "actions": {
+        "save": "Save provider settings",
+        "removeApiKey": "Remove API key"
+      },
+      "apiKey": {
+        "title": "API key",
+        "label": "Anthropic API key",
+        "placeholder": {
+          "replace": "Enter a new key to replace the existing one",
+          "empty": "sk-ant-..."
+        },
+        "status": {
+          "none": "No API key configured",
+          "ready": "New API key ready to save",
+          "configured": "API key configured"
+        }
+      }
+    },
+    "skills": {
+      "description": "Skill installation, enablement, and lifecycle management now live in the dedicated Skills page. Use that page to install WASM skills, toggle enabled state, and inspect manifests."
+    },
+    "network": {
+      "title": "Network Settings"
+    },
+    "developer": {
+      "title": "Developer Tools"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "languages": {
+        "en": "Use English for the interface.",
+        "zh": "Use Chinese for the interface.",
+        "ja": "Use Japanese for the interface."
+      },
+      "themes": {
+        "light": {
+          "label": "Light",
+          "description": "Use the light theme."
+        },
+        "dark": {
+          "label": "Dark",
+          "description": "Use the dark theme."
+        },
+        "system": {
+          "label": "System",
+          "description": "Follow the operating system preference."
+        }
+      },
+      "display": {
+        "title": "Display options",
+        "fontSize": "Font size",
+        "maxHistory": "Max history",
+        "showTimestamps": "Show timestamps in messages"
+      }
+    }
+  },
+  "setup": {
+    "sidebar": {
+      "caption": "Guided first-run setup",
+      "progress": "Progress"
+    },
+    "steps": {
+      "welcome": {
+        "title": "Welcome",
+        "description": "Get started with NextClaw"
+      },
+      "language": {
+        "title": "Language",
+        "description": "Choose your language"
+      },
+      "provider": {
+        "title": "AI Provider",
+        "description": "Configure your AI provider"
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Select skill bundles"
+      },
+      "verification": {
+        "title": "Verification",
+        "description": "Test your configuration"
+      }
+    },
+    "actions": {
+      "skip": "Skip for now",
+      "getStarted": "Get Started",
+      "continue": "Continue",
+      "back": "Back",
+      "openInstaller": "Open Installer"
+    },
+    "welcome": {
+      "title": "Welcome to NextClaw",
+      "description": "A ClawX-compatible desktop workspace for local runtime, skills, and automation.",
+      "helper": "Start with a few core preferences, then jump into the installer and product shell."
+    },
+    "views": {
+      "language": {
+        "title": "Choose Your Language",
+        "description": "Select the language you'd like to use for the interface.",
+        "selected": "Selected"
+      },
+      "provider": {
+        "title": "Configure AI Provider",
+        "description": "Add your primary provider later in Channels or Settings. This step keeps the launch flow lightweight.",
+        "preferredLabel": "Preferred provider",
+        "preferredValue": "Anthropic Claude is recommended for first-run setup.",
+        "helper": "Provider keys and account bindings can be configured safely after onboarding from the main shell."
+      },
+      "skills": {
+        "title": "Select Skill Bundles",
+        "description": "Choose which skill categories you want to explore first.",
+        "bundles": {
+          "document": {
+            "name": "Document Processing",
+            "description": "Process PDF, Excel, Word files"
+          },
+          "search": {
+            "name": "Search Skills",
+            "description": "Brave and Tavily web search"
+          },
+          "agent": {
+            "name": "Agent Tools",
+            "description": "Self-improving and find skills"
+          }
+        }
+      },
+      "verification": {
+        "title": "Ready to Open the Product Shell",
+        "description": "Your first-run preferences are captured. The next recommended stop is the Installer page to start the local runtime.",
+        "languageSet": "Language set to {{language}}",
+        "providerDeferred": "Provider setup deferred to the full Settings and Channels pages",
+        "skillsSelected": "{{count}} skill bundle(s) selected",
+        "noSkillsSelected": "No skill bundles selected yet"
+      }
+    }
+  }
 }

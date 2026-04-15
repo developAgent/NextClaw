@@ -41,5 +41,182 @@
   "noResults": "没有找到结果",
   "viewAll": "查看全部",
   "settingsSaved": "设置保存成功",
-  "settingsFailed": "保存设置失败"
+  "settingsFailed": "保存设置失败",
+  "settingsPage": {
+    "title": "应用设置",
+    "subtitle": "管理运行时行为、Claude 访问和界面偏好。",
+    "tabs": {
+      "general": "常规",
+      "providers": "提供商",
+      "skills": "技能",
+      "network": "网络",
+      "appearance": "外观",
+      "developer": "开发者"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "saveChanges": "保存更改",
+      "saving": "保存中..."
+    },
+    "states": {
+      "unableToLoad": "无法加载设置。"
+    },
+    "general": {
+      "execution": {
+        "title": "命令执行",
+        "timeout": "命令超时（秒）",
+        "sandboxPath": "沙箱路径",
+        "allowShell": "允许执行 Shell 命令",
+        "requireConfirmation": "危险命令前需要确认"
+      },
+      "rules": {
+        "title": "命令规则",
+        "whitelist": "白名单",
+        "blacklist": "黑名单",
+        "placeholder": "每行一个命令"
+      }
+    },
+    "providers": {
+      "title": "Claude 提供商",
+      "fields": {
+        "model": "模型",
+        "requestTimeout": "请求超时（秒）",
+        "maxRetries": "最大重试次数"
+      },
+      "actions": {
+        "save": "保存提供商设置",
+        "removeApiKey": "移除 API 密钥"
+      },
+      "apiKey": {
+        "title": "API 密钥",
+        "label": "Anthropic API 密钥",
+        "placeholder": {
+          "replace": "输入新密钥以替换现有密钥",
+          "empty": "sk-ant-..."
+        },
+        "status": {
+          "none": "尚未配置 API 密钥",
+          "ready": "新的 API 密钥已准备好保存",
+          "configured": "API 密钥已配置"
+        }
+      }
+    },
+    "skills": {
+      "description": "技能的安装、启用和生命周期管理现已移动到独立的 Skills 页面。请在该页面安装 WASM 技能、切换启用状态并查看清单。"
+    },
+    "network": {
+      "title": "网络设置"
+    },
+    "developer": {
+      "title": "开发者工具"
+    },
+    "appearance": {
+      "title": "外观",
+      "languages": {
+        "en": "使用英文界面。",
+        "zh": "使用中文界面。",
+        "ja": "使用日文界面。"
+      },
+      "themes": {
+        "light": {
+          "label": "浅色",
+          "description": "使用浅色主题。"
+        },
+        "dark": {
+          "label": "深色",
+          "description": "使用深色主题。"
+        },
+        "system": {
+          "label": "跟随系统",
+          "description": "跟随操作系统偏好。"
+        }
+      },
+      "display": {
+        "title": "显示选项",
+        "fontSize": "字体大小",
+        "maxHistory": "最大历史记录",
+        "showTimestamps": "在消息中显示时间戳"
+      }
+    }
+  },
+  "setup": {
+    "sidebar": {
+      "caption": "首次运行引导",
+      "progress": "进度"
+    },
+    "steps": {
+      "welcome": {
+        "title": "欢迎",
+        "description": "开始使用 NextClaw"
+      },
+      "language": {
+        "title": "语言",
+        "description": "选择你的语言"
+      },
+      "provider": {
+        "title": "AI 提供商",
+        "description": "配置你的 AI 提供商"
+      },
+      "skills": {
+        "title": "技能",
+        "description": "选择技能包"
+      },
+      "verification": {
+        "title": "验证",
+        "description": "测试你的配置"
+      }
+    },
+    "actions": {
+      "skip": "暂时跳过",
+      "getStarted": "开始使用",
+      "continue": "继续",
+      "back": "返回",
+      "openInstaller": "打开安装器"
+    },
+    "welcome": {
+      "title": "欢迎使用 NextClaw",
+      "description": "一个兼容 ClawX 的桌面工作区，支持本地运行时、技能与自动化。",
+      "helper": "先设置几个核心偏好，然后进入安装器和产品主界面。"
+    },
+    "views": {
+      "language": {
+        "title": "选择你的语言",
+        "description": "选择你希望用于界面的语言。",
+        "selected": "已选择"
+      },
+      "provider": {
+        "title": "配置 AI 提供商",
+        "description": "稍后可在 Channels 或 Settings 中添加主要提供商。本步骤保持启动流程轻量。",
+        "preferredLabel": "首选提供商",
+        "preferredValue": "首次使用推荐 Anthropic Claude。",
+        "helper": "完成引导后，可在主界面中安全配置 Provider 密钥和账户绑定。"
+      },
+      "skills": {
+        "title": "选择技能包",
+        "description": "选择你想先体验的技能类别。",
+        "bundles": {
+          "document": {
+            "name": "文档处理",
+            "description": "处理 PDF、Excel、Word 文件"
+          },
+          "search": {
+            "name": "搜索技能",
+            "description": "Brave 与 Tavily 网络搜索"
+          },
+          "agent": {
+            "name": "代理工具",
+            "description": "自我改进与查找技能"
+          }
+        }
+      },
+      "verification": {
+        "title": "准备打开产品主界面",
+        "description": "你的首次运行偏好已记录。下一步建议前往 Installer 页面启动本地运行时。",
+        "languageSet": "语言已设置为 {{language}}",
+        "providerDeferred": "提供商设置已延后到完整的 Settings 和 Channels 页面",
+        "skillsSelected": "已选择 {{count}} 个技能包",
+        "noSkillsSelected": "尚未选择技能包"
+      }
+    }
+  }
 }

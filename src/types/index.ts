@@ -50,6 +50,7 @@ export interface Config {
   };
   ui: {
     theme: string;
+    language: 'en' | 'zh' | 'ja';
     fontSize: number;
     showTimestamps: boolean;
     maxHistory: number;
@@ -61,13 +62,16 @@ export interface ConfigUpdate {
   requestTimeoutSecs?: number;
   maxRetries?: number;
   timeoutSecs?: number;
+  allowShell?: boolean;
   whitelist?: string[];
   blacklist?: string[];
   sandboxPath?: string;
   requireConfirmation?: boolean;
   theme?: string;
+  language?: 'en' | 'zh' | 'ja';
   fontSize?: number;
   showTimestamps?: boolean;
+  maxHistory?: number;
 }
 
 export interface Channel {

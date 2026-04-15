@@ -137,7 +137,15 @@
       "Bash(where.exe cl:*)",
       "Bash(env:*)",
       "Bash(where.exe rust-lld:*)",
-      "Bash(where.exe vswhere:*)"
+      "Bash(where.exe vswhere:*)",
+      "Bash(cargo test:*)",
+      "Bash(where.exe:*)",
+      "Bash(link.exe --help)",
+      "Bash(cargo:*)",
+      "Bash(set)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(TMP=\"D:/TEMP\" TEMP=\"D:/TEMP\" /c/Users/Administrator/Downloads/vs_BuildTools.exe:*)"
     ]
   }
 }

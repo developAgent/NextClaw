@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Check, Zap, Languages, Key, Database, Play, ArrowRight } from 'lucide-react';
 import { useI18nStore } from '@/store/i18n';
+import { useSettingsStore } from '@/store/settings';
 
 type SetupStep = 'welcome' | 'language' | 'provider' | 'skills' | 'verification' | 'complete';
 
@@ -13,47 +14,14 @@ interface StepConfig {
 
 interface SkillBundle {
   id: string;
-  name: string;
-  description: string;
+  nameKey: string;
+  descriptionKey: string;
 }
 
 interface SetupWizardProps {
   onComplete?: () => void;
   onSkip?: () => void;
 }
-
-const steps: StepConfig[] = [
-  {
-    id: 'welcome',
-    title: 'Welcome',
-    description: 'Get started with CEOClaw',
-    icon: Zap,
-  },
-  {
-    id: 'language',
-    title: 'Language',
-    description: 'Choose your language',
-    icon: Languages,
-  },
-  {
-    id: 'provider',
-    title: 'AI Provider',
-    description: 'Configure your AI provider',
-    icon: Key,
-  },
-  {
-    id: 'skills',
-    title: 'Skills',
-    description: 'Select skill bundles',
-    icon: Database,
-  },
-  {
-    id: 'verification',
-    title: 'Verification',
-    description: 'Test your configuration',
-    icon: Play,
-  },
-];
 
 const languages = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
@@ -62,21 +30,59 @@ const languages = [
 ] as const;
 
 const skillBundles: SkillBundle[] = [
-  { id: 'document', name: 'Document Processing', description: 'Process PDF, Excel, Word files' },
-  { id: 'search', name: 'Search Skills', description: 'Brave and Tavily web search' },
-  { id: 'agent', name: 'Agent Tools', description: 'Self-improving and find skills' },
+  { id: 'document', nameKey: 'setup.views.skills.bundles.document.name', descriptionKey: 'setup.views.skills.bundles.document.description' },
+  { id: 'search', nameKey: 'setup.views.skills.bundles.search.name', descriptionKey: 'setup.views.skills.bundles.search.description' },
+  { id: 'agent', nameKey: 'setup.views.skills.bundles.agent.name', descriptionKey: 'setup.views.skills.bundles.agent.description' },
 ];
 
 export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>('welcome');
   const [completedSteps, setCompletedSteps] = useState<Set<SetupStep>>(new Set());
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const { language } = useI18nStore();
+  const { language, t } = useI18nStore();
+  const saveConfig = useSettingsStore((state) => state.saveConfig);
+
+  const steps: StepConfig[] = [
+    {
+      id: 'welcome',
+      title: t('setup.steps.welcome.title'),
+      description: t('setup.steps.welcome.description'),
+      icon: Zap,
+    },
+    {
+      id: 'language',
+      title: t('setup.steps.language.title'),
+      description: t('setup.steps.language.description'),
+      icon: Languages,
+    },
+    {
+      id: 'provider',
+      title: t('setup.steps.provider.title'),
+      description: t('setup.steps.provider.description'),
+      icon: Key,
+    },
+    {
+      id: 'skills',
+      title: t('setup.steps.skills.title'),
+      description: t('setup.steps.skills.description'),
+      icon: Database,
+    },
+    {
+      id: 'verification',
+      title: t('setup.steps.verification.title'),
+      description: t('setup.steps.verification.description'),
+      icon: Play,
+    },
+  ];
 
   const selectedLanguage = useMemo(
     () => languages.find((lang) => lang.code === language) ?? languages[0],
     [language]
   );
+
+  useEffect(() => {
+    void saveConfig({ language });
+  }, [language, saveConfig]);
 
   const handleNext = () => {
     setCompletedSteps((prev) => new Set(prev).add(currentStep));
@@ -150,7 +156,7 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
       <div className="flex w-72 shrink-0 flex-col border-r border-zinc-800 p-6">
         <div className="mb-8">
           <h1 className="mb-2 text-xl font-bold text-blue-500">NextClaw</h1>
-          <p className="text-xs text-zinc-500">Guided first-run setup</p>
+          <p className="text-xs text-zinc-500">{t('setup.sidebar.caption')}</p>
         </div>
 
         <div className="flex-1 space-y-2">
@@ -166,7 +172,7 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
 
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-zinc-500">Progress</span>
+            <span className="text-zinc-500">{t('setup.sidebar.progress')}</span>
             <span className="text-zinc-400">{Math.round(getProgress())}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
@@ -182,7 +188,7 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
             onClick={onSkip}
             className="mt-6 rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
           >
-            Skip for now
+            {t('setup.actions.skip')}
           </button>
         ) : null}
       </div>
@@ -195,17 +201,17 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                 <Zap className="h-10 w-10 text-white" />
               </div>
               <div>
-                <h2 className="mb-2 text-3xl font-bold">Welcome to NextClaw</h2>
+                <h2 className="mb-2 text-3xl font-bold">{t('setup.welcome.title')}</h2>
                 <p className="text-lg text-zinc-400">
-                  A ClawX-compatible desktop workspace for local runtime, skills, and automation.
+                  {t('setup.welcome.description')}
                 </p>
               </div>
-              <p className="text-zinc-500">Start with a few core preferences, then jump into the installer and product shell.</p>
+              <p className="text-zinc-500">{t('setup.welcome.helper')}</p>
               <button
                 onClick={handleNext}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
               >
-                Get Started
+                {t('setup.actions.getStarted')}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -214,8 +220,8 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
           {currentStep === 'language' && (
             <div className="space-y-6">
               <div>
-                <h2 className="mb-2 text-2xl font-bold">Choose Your Language</h2>
-                <p className="text-zinc-400">Select the language you'd like to use for the interface.</p>
+                <h2 className="mb-2 text-2xl font-bold">{t('setup.views.language.title')}</h2>
+                <p className="text-zinc-400">{t('setup.views.language.description')}</p>
               </div>
 
               <div className="space-y-3">
@@ -235,6 +241,11 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                         <p className="font-medium">{lang.name}</p>
                         <p className="text-xs text-zinc-500">{lang.code.toUpperCase()}</p>
                       </div>
+                      {selectedLanguage.code === lang.code ? (
+                        <span className="ml-auto rounded-full bg-blue-500 px-2 py-1 text-xs font-medium text-white">
+                          {t('setup.views.language.selected')}
+                        </span>
+                      ) : null}
                     </div>
                   </button>
                 ))}
@@ -245,7 +256,7 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                   onClick={handleNext}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
                 >
-                  Continue
+                  {t('setup.actions.continue')}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -255,20 +266,20 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
           {currentStep === 'provider' && (
             <div className="space-y-6">
               <div>
-                <h2 className="mb-2 text-2xl font-bold">Configure AI Provider</h2>
-                <p className="text-zinc-400">Add your primary provider later in Channels or Settings. This step keeps the launch flow lightweight.</p>
+                <h2 className="mb-2 text-2xl font-bold">{t('setup.views.provider.title')}</h2>
+                <p className="text-zinc-400">{t('setup.views.provider.description')}</p>
               </div>
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Preferred provider</label>
+                    <label className="mb-2 block text-sm font-medium">{t('setup.views.provider.preferredLabel')}</label>
                     <div className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-zinc-300">
-                      Anthropic Claude is recommended for first-run setup.
+                      {t('setup.views.provider.preferredValue')}
                     </div>
                   </div>
                   <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
-                    Provider keys and account bindings can be configured safely after onboarding from the main shell.
+                    {t('setup.views.provider.helper')}
                   </div>
                 </div>
               </div>
@@ -278,13 +289,13 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                   onClick={handleBack}
                   className="rounded-lg bg-zinc-800 px-6 py-3 font-medium hover:bg-zinc-700"
                 >
-                  Back
+                  {t('setup.actions.back')}
                 </button>
                 <button
                   onClick={handleNext}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
                 >
-                  Continue
+                  {t('setup.actions.continue')}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -294,8 +305,8 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
           {currentStep === 'skills' && (
             <div className="space-y-6">
               <div>
-                <h2 className="mb-2 text-2xl font-bold">Select Skill Bundles</h2>
-                <p className="text-zinc-400">Choose which skill categories you want to explore first.</p>
+                <h2 className="mb-2 text-2xl font-bold">{t('setup.views.skills.title')}</h2>
+                <p className="text-zinc-400">{t('setup.views.skills.description')}</p>
               </div>
 
               <div className="space-y-3">
@@ -321,8 +332,8 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                           {isSelected ? <Check className="h-6 w-6" /> : <Database className="h-6 w-6" />}
                         </div>
                         <div className="flex-1 text-left">
-                          <p className="font-medium">{bundle.name}</p>
-                          <p className="text-sm text-zinc-500">{bundle.description}</p>
+                          <p className="font-medium">{t(bundle.nameKey)}</p>
+                          <p className="text-sm text-zinc-500">{t(bundle.descriptionKey)}</p>
                         </div>
                       </div>
                     </button>
@@ -335,13 +346,13 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                   onClick={handleBack}
                   className="rounded-lg bg-zinc-800 px-6 py-3 font-medium hover:bg-zinc-700"
                 >
-                  Back
+                  {t('setup.actions.back')}
                 </button>
                 <button
                   onClick={handleNext}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
                 >
-                  Continue
+                  {t('setup.actions.continue')}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -351,8 +362,8 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
           {currentStep === 'verification' && (
             <div className="space-y-6">
               <div>
-                <h2 className="mb-2 text-2xl font-bold">Ready to Open the Product Shell</h2>
-                <p className="text-zinc-400">Your first-run preferences are captured. The next recommended stop is the Installer page to start the local runtime.</p>
+                <h2 className="mb-2 text-2xl font-bold">{t('setup.views.verification.title')}</h2>
+                <p className="text-zinc-400">{t('setup.views.verification.description')}</p>
               </div>
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
@@ -361,19 +372,19 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
                       <Check className="h-5 w-5 text-white" />
                     </div>
-                    <p>Language set to {selectedLanguage.name}</p>
+                    <p>{t('setup.views.verification.languageSet', { language: selectedLanguage.name })}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
                       <Check className="h-5 w-5 text-white" />
                     </div>
-                    <p>Provider setup deferred to the full Settings and Channels pages</p>
+                    <p>{t('setup.views.verification.providerDeferred')}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
                       <Check className="h-5 w-5 text-white" />
                     </div>
-                    <p>{selectedSkills.length > 0 ? `${selectedSkills.length} skill bundle(s) selected` : 'No skill bundles selected yet'}</p>
+                    <p>{selectedSkills.length > 0 ? t('setup.views.verification.skillsSelected', { count: selectedSkills.length }) : t('setup.views.verification.noSkillsSelected')}</p>
                   </div>
                 </div>
               </div>
@@ -383,13 +394,13 @@ export default function SetupWizard({ onComplete, onSkip }: SetupWizardProps) {
                   onClick={handleBack}
                   className="rounded-lg bg-zinc-800 px-6 py-3 font-medium hover:bg-zinc-700"
                 >
-                  Back
+                  {t('setup.actions.back')}
                 </button>
                 <button
                   onClick={handleNext}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
                 >
-                  Open Installer
+                  {t('setup.actions.openInstaller')}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>

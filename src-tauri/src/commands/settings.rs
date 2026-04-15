@@ -33,6 +33,7 @@ pub fn get_config(
         },
         "ui": {
             "theme": config.ui.theme,
+            "language": config.ui.language,
             "fontSize": config.ui.font_size,
             "showTimestamps": config.ui.show_timestamps,
             "maxHistory": config.ui.max_history
@@ -63,6 +64,9 @@ pub fn update_config(config_update: String) -> Result<()> {
     if let Some(timeout_secs) = update.timeout_secs {
         current_config.commands.timeout_secs = timeout_secs;
     }
+    if let Some(allow_shell) = update.allow_shell {
+        current_config.commands.allow_shell = allow_shell;
+    }
     if let Some(whitelist) = update.whitelist {
         current_config.commands.whitelist = whitelist;
     }
@@ -78,11 +82,17 @@ pub fn update_config(config_update: String) -> Result<()> {
     if let Some(theme) = update.theme {
         current_config.ui.theme = theme;
     }
+    if let Some(language) = update.language {
+        current_config.ui.language = language;
+    }
     if let Some(font_size) = update.font_size {
         current_config.ui.font_size = font_size;
     }
     if let Some(show_timestamps) = update.show_timestamps {
         current_config.ui.show_timestamps = show_timestamps;
+    }
+    if let Some(max_history) = update.max_history {
+        current_config.ui.max_history = max_history;
     }
 
     current_config.save()?;
@@ -123,13 +133,16 @@ pub struct ConfigUpdate {
     pub request_timeout_secs: Option<u64>,
     pub max_retries: Option<u32>,
     pub timeout_secs: Option<u64>,
+    pub allow_shell: Option<bool>,
     pub whitelist: Option<Vec<String>>,
     pub blacklist: Option<Vec<String>>,
     pub sandbox_path: Option<String>,
     pub require_confirmation: Option<bool>,
     pub theme: Option<String>,
+    pub language: Option<String>,
     pub font_size: Option<u16>,
     pub show_timestamps: Option<bool>,
+    pub max_history: Option<usize>,
 }
 
 #[cfg(test)]
@@ -143,10 +156,16 @@ mod tests {
             request_timeout_secs: None,
             max_retries: None,
             timeout_secs: None,
+            allow_shell: None,
             whitelist: None,
             blacklist: None,
             sandbox_path: None,
             require_confirmation: None,
+            theme: None,
+            language: None,
+            font_size: None,
+            show_timestamps: None,
+            max_history: None,
         };
 
         assert!(update.claude_model.is_some());

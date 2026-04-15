@@ -4,6 +4,26 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::info;
 
+fn default_ui_theme() -> String {
+    "dark".to_string()
+}
+
+fn default_ui_language() -> String {
+    "en".to_string()
+}
+
+fn default_ui_font_size() -> u16 {
+    14
+}
+
+fn default_ui_show_timestamps() -> bool {
+    true
+}
+
+fn default_ui_max_history() -> usize {
+    1000
+}
+
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -49,12 +69,19 @@ pub struct CommandConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
     /// Theme (light, dark, auto)
+    #[serde(default = "default_ui_theme")]
     pub theme: String,
+    /// Interface language
+    #[serde(default = "default_ui_language")]
+    pub language: String,
     /// Font size
+    #[serde(default = "default_ui_font_size")]
     pub font_size: u16,
     /// Show timestamps in chat
+    #[serde(default = "default_ui_show_timestamps")]
     pub show_timestamps: bool,
     /// Maximum message history length
+    #[serde(default = "default_ui_max_history")]
     pub max_history: usize,
 }
 
@@ -90,6 +117,7 @@ impl Default for Config {
             },
             ui: UiConfig {
                 theme: "dark".to_string(),
+                language: "en".to_string(),
                 font_size: 14,
                 show_timestamps: true,
                 max_history: 1000,
