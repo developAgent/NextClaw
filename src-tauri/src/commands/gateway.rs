@@ -272,6 +272,13 @@ impl GatewayManager {
         }
     }
 
+    /// Get gateway configuration from database and refresh cache
+    pub async fn get_config(&self, db: Arc<Database>) -> Result<GatewayConfig> {
+        let config = self.load_config(db).await?;
+        *self.config.lock().await = config.clone();
+        Ok(config)
+    }
+
     /// Save configuration to database
     async fn save_config(&self, config: &GatewayConfig, db: Arc<Database>) -> Result<()> {
         let conn = db.conn();
@@ -382,9 +389,10 @@ pub async fn check_gateway_health(
 /// Get gateway configuration
 #[tauri::command]
 pub async fn get_gateway_config(
+    db: State<'_, Arc<Database>>,
     manager: State<'_, Arc<GatewayManager>>,
 ) -> Result<GatewayConfig> {
-    Ok(manager.config.lock().await.clone())
+    manager.get_config(db.inner().clone()).await
 }
 
 /// Update gateway configuration

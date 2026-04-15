@@ -223,6 +223,43 @@ export interface LogEntry {
   context?: string;
 }
 
+export type RuntimeState = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
+
+export interface RuntimeStatus {
+  state: RuntimeState;
+  port: number;
+  pid?: number;
+  startedAt?: string;
+  healthy?: boolean;
+  controlUrl?: string;
+}
+
+export interface RuntimeConfig {
+  autoStart: boolean;
+  token?: string;
+  port: number;
+  proxyEnabled: boolean;
+  proxyServer?: string;
+  proxyHttpServer?: string;
+  proxyHttpsServer?: string;
+  proxyAllServer?: string;
+  proxyBypassRules?: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  isCurrent: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWorkspaceInput {
+  name: string;
+  description?: string;
+}
+
 export interface SystemInfo {
   os: string;
   arch: string;

@@ -109,7 +109,7 @@ pub async fn run_cron_job(
     drop(db);
 
     // Execute the job
-    let result = crate::cron::CronScheduler::execute_job(&job).await;
+    let result = scheduler.execute_job(&job).await;
 
     // Update execution record
     let (status, output, error) = match &result {

@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Database, Search, Trash2, ToggleRight, FileCode, Download, Upload } from 'lucide-react';
+import { Plus, Database, Search, Trash2, ToggleRight, FileCode, Download } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+
+type SkillPermission = {
+  permission_type?: string;
+};
 
 interface Skill {
   id: string;
@@ -8,7 +12,7 @@ interface Skill {
   version: string;
   description: string;
   author: string;
-  permissions: any[];
+  permissions: SkillPermission[];
   enabled: boolean;
 }
 
@@ -18,10 +22,15 @@ interface SkillManifest {
   version: string;
   description: string;
   author: string;
-  permissions: any[];
+  permissions: SkillPermission[];
   api_version: string;
   entry_point: string;
-  config_schema?: any;
+  config_schema?: unknown;
+}
+
+interface InstalledSkill {
+  manifest: SkillManifest;
+  enabled: boolean;
 }
 
 export default function Skills() {
@@ -40,14 +49,30 @@ export default function Skills() {
 
   const loadSkills = async () => {
     try {
-      const data = await invoke<SkillManifest[]>('wasm_list_skills');
-      const skillList = data.map(s => ({
-        ...s,
-        enabled: true, // All loaded skills are considered enabled
+      const data = await invoke<InstalledSkill[]>('wasm_list_skills');
+      const skillList = data.map(({ manifest, enabled }) => ({
+        ...manifest,
+        enabled,
       }));
-      setSkills(skillList as Skill[]);
+      setSkills(skillList);
     } catch (error) {
       console.error('Failed to load skills:', error);
+    }
+  };
+
+  const handleToggleSkill = async (skill: Skill) => {
+    try {
+      setLoading(true);
+      await invoke('wasm_set_skill_enabled', {
+        skillId: skill.id,
+        enabled: !skill.enabled,
+      });
+      await loadSkills();
+    } catch (error) {
+      console.error('Failed to toggle skill:', error);
+      alert('Failed to update skill state');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,11 +80,14 @@ export default function Skills() {
     if (!confirm('Are you sure you want to uninstall this skill?')) return;
 
     try {
+      setLoading(true);
       await invoke('wasm_unregister_skill', { skillId: id });
       await loadSkills();
     } catch (error) {
       console.error('Failed to uninstall skill:', error);
       alert('Failed to uninstall skill');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,11 +122,15 @@ export default function Skills() {
 
       await loadSkills();
       setSelectedManifest(null);
-      setLoading(false);
       setShowInstallModal(false);
+      setManifestInput('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Failed to install skill:', error);
       alert('Failed to install skill');
+    } finally {
       setLoading(false);
     }
   };
@@ -203,15 +235,17 @@ export default function Skills() {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => {}}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-sm"
+                      onClick={() => void handleToggleSkill(skill)}
+                      disabled={loading}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg transition-colors text-sm"
                     >
                       <ToggleRight className="w-4 h-4" />
                       {skill.enabled ? 'Disable' : 'Enable'}
                     </button>
                     <button
-                      onClick={() => handleUninstallSkill(skill.id)}
-                      className="p-2 hover:bg-red-600/20 hover:text-red-400 rounded-lg transition-colors"
+                      onClick={() => void handleUninstallSkill(skill.id)}
+                      disabled={loading}
+                      className="p-2 hover:bg-red-600/20 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg transition-colors"
                       title="Uninstall"
                     >
                       <Trash2 className="w-4 h-4" />

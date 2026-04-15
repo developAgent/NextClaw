@@ -1,11 +1,10 @@
-use crate::db::Database;
-use crate::skills::host::WasmHost;
+use crate::skills::host::{InstalledSkill, WasmHost};
 use crate::skills::manifest::SkillManifest;
 use crate::skills::permissions::PermissionSet;
 use crate::skills::runtime::WasmArgument;
 use crate::utils::error::Result;
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 use tracing::info;
 
 /// Check if WASM host is initialized
@@ -14,10 +13,10 @@ pub async fn wasm_host_initialized(host: State<'_, Arc<WasmHost>>) -> Result<boo
     Ok(host.list_skills().await.len() > 0)
 }
 
-/// List all registered WASM skills
+/// List all installed WASM skills
 #[tauri::command]
-pub async fn wasm_list_skills(host: State<'_, Arc<WasmHost>>) -> Result<Vec<SkillManifest>> {
-    Ok(host.list_skills().await)
+pub async fn wasm_list_skills(host: State<'_, Arc<WasmHost>>) -> Result<Vec<InstalledSkill>> {
+    host.list_installed_skills().await
 }
 
 /// Get a specific skill manifest
@@ -83,6 +82,16 @@ pub async fn wasm_unregister_skill(
     host: State<'_, Arc<WasmHost>>,
 ) -> Result<()> {
     host.unregister_skill(&skill_id).await
+}
+
+/// Set WASM skill enabled state
+#[tauri::command]
+pub async fn wasm_set_skill_enabled(
+    skill_id: String,
+    enabled: bool,
+    host: State<'_, Arc<WasmHost>>,
+) -> Result<()> {
+    host.set_skill_enabled(&skill_id, enabled).await
 }
 
 /// Check if a skill is registered

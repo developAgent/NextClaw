@@ -69,17 +69,26 @@ base64 = "0.22"
 # Semantic versioning
 semver = "1.0"
 
-# Image processing (for OCR and screen capture)
+# Image processing
 image = "0.24"
-
-# Computer vision
-opencv = { version = "0.88", features = ["opencv-4"] }
 
 # Screen capture
 screenshots = "0.7"
 
-# Input simulation (for playback)
-inputbot = "0.6"
+# OCR (using tesseract instead of opencv for simpler dependencies)
+tesseract = "0.14"
+leptonica-plumbing = "1.4"
+
+# Input simulation and monitoring
+enigo = { version = "0.2", default-features = false }
+rdev = "0.5"
+
+# Expression evaluation (for workflow variables)
+evalexpr = "11.0"
+
+# Removed dependencies (no longer needed):
+# opencv = "0.88"  # Too complex, replaced with tesseract
+# inputbot = "0.6"  # Unmaintained, replaced with enigo
 
 # Keychain storage
 keyring = "3.0"

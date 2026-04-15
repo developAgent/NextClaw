@@ -1,0 +1,24 @@
+Visual Studio Installer 4.4.38+f809381b5a
+? Microsoft Corporation. All rights reserved.
+
+  --in                   用于操作的响应文件的路径
+
+  --noUpdateInstaller    如果需要更新，则阻止安装程序自动更新
+
+  --cache                指定应将有效负载缓存到系统上
+
+  --nocache              指定应从系统中删除有效负载
+
+  --noWeb                阻止安装程序通过 HTTP 下载任何有效负载
+
+  --force                在开始操作之前，强制任何正在运行、正在阻止的 exe 关闭
+
+  --theme                更改安装程序的颜色主题。相应选项为“Light”(浅色)、“Dark”(深色)和“HighContrast”(
+                         高对比度)
+
+  --locale               设置 UI 区域设置
+
+  --help                 Display this help screen.
+
+  --version              Display version information.
+

@@ -7,6 +7,7 @@ use tracing::{debug, info};
 use crate::utils::error::{AppError, Result};
 
 /// Thread-safe database connection manager
+#[derive(Clone)]
 pub struct Database {
     conn: Arc<tokio::sync::Mutex<Connection>>,
 }
@@ -310,6 +311,20 @@ impl Database {
             [],
         ).map_err(|e| AppError::Database(format!("Failed to create app_logs table: {e}")))?;
 
+        // --- Workspaces Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create workspaces table: {e}")))?;
+
         // --- Indexes for better performance ---
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)",
@@ -366,6 +381,11 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level)",
             [],
         ).map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workspaces_name ON workspaces(name)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create workspaces index: {e}")))?;
 
         debug!("Database schema initialized successfully");
         Ok(())

@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Activity, CheckCircle, AlertTriangle, XCircle, Download, Trash2, RefreshCw, Terminal } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import type { DiagnosticInfo, TelemetryData, TokenUsageStats, LogEntry, SystemInfo } from '@/types';
+import type { DiagnosticInfo, TelemetryData, TokenUsageStats, SystemInfo } from '@/types';
 
 export default function DeveloperTools() {
   const [diagnostics, setDiagnostics] = useState<DiagnosticInfo | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryData[]>([]);
   const [tokenStats, setTokenStats] = useState<TokenUsageStats | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<'diagnostics' | 'telemetry' | 'logs' | 'system'>('diagnostics');
+  const [activeTab, setActiveTab] = useState<'diagnostics' | 'telemetry' | 'system'>('diagnostics');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -17,7 +16,6 @@ export default function DeveloperTools() {
     loadDiagnostics();
     loadTelemetry();
     loadTokenStats();
-    loadLogs();
   }, []);
 
   const loadDiagnostics = async () => {
@@ -47,15 +45,6 @@ export default function DeveloperTools() {
       setTokenStats(result);
     } catch (error) {
       console.error('Failed to load token stats:', error);
-    }
-  };
-
-  const loadLogs = async () => {
-    try {
-      const result = await invoke<LogEntry[]>('get_app_logs', { limit: 50 });
-      setLogs(result);
-    } catch (error) {
-      console.error('Failed to load logs:', error);
     }
   };
 
@@ -111,28 +100,13 @@ export default function DeveloperTools() {
     }
   };
 
-  const getLogLevelColor = (level: string) => {
-    switch (level.toLowerCase()) {
-      case 'error':
-        return 'text-red-400';
-      case 'warn':
-      case 'warning':
-        return 'text-yellow-400';
-      case 'info':
-        return 'text-blue-400';
-      case 'debug':
-        return 'text-zinc-400';
-      default:
-        return 'text-zinc-300';
-    }
-  };
 
   return (
     <div className="space-y-6">
       {/* Tabs */}
       <div className="border-b border-zinc-700">
         <nav className="flex gap-6">
-          {(['diagnostics', 'telemetry', 'logs', 'system'] as const).map((tab) => (
+          {(['diagnostics', 'telemetry', 'system'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -146,6 +120,19 @@ export default function DeveloperTools() {
             </button>
           ))}
         </nav>
+      </div>
+
+      {/* Logs are available from the dedicated Logs page */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-4">
+        <div className="flex items-start gap-3">
+          <Activity className="mt-0.5 h-5 w-5 text-blue-400" />
+          <div>
+            <p className="text-sm font-medium text-zinc-100">Runtime and application logs live in the main Logs page.</p>
+            <p className="mt-1 text-sm text-zinc-400">
+              Use the Logs section in the primary navigation for filtering, search, and detailed event inspection.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Diagnostics Tab */}
@@ -294,36 +281,6 @@ export default function DeveloperTools() {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Logs Tab */}
-      {activeTab === 'logs' && (
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold">Application Logs</h2>
-            <button
-              onClick={loadLogs}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 font-mono text-sm space-y-2 max-h-96 overflow-y-auto">
-            {logs.length === 0 ? (
-              <p className="text-zinc-400">No logs available</p>
-            ) : (
-              logs.map((log, index) => (
-                <div key={index} className="flex gap-3">
-                  <span className="text-zinc-500 shrink-0">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                  <span className={`shrink-0 uppercase w-12 ${getLogLevelColor(log.level)}`}>{log.level}</span>
-                  <span className="text-zinc-300">{log.message}</span>
-                </div>
-              ))
-            )}
           </div>
         </div>
       )}

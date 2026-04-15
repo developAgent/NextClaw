@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Link2, Check, X, Edit, Trash2, Key, RefreshCw } from 'lucide-react';
+import { Plus, Link2, Check, X, Trash2, Key, RefreshCw } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 
 interface Channel {
@@ -38,7 +38,6 @@ export default function Channels() {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
-  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [channelForm, setChannelForm] = useState<ChannelFormData>({
@@ -61,10 +60,18 @@ export default function Channels() {
     try {
       const data = await invoke<Channel[]>('get_all_channels');
       setChannels(data);
-      if (data.length > 0 && !selectedChannel) {
-        await loadAccountsForChannel(data[0].id);
-        setSelectedChannel(data[0]);
+
+      if (data.length === 0) {
+        setSelectedChannel(null);
+        return;
       }
+
+      const nextSelectedChannel = selectedChannel
+        ? data.find((channel) => channel.id === selectedChannel.id) ?? data[0]
+        : data[0];
+
+      setSelectedChannel(nextSelectedChannel);
+      await loadAccountsForChannel(nextSelectedChannel.id);
     } catch (error) {
       console.error('Failed to load channels:', error);
     }
@@ -73,7 +80,7 @@ export default function Channels() {
   const loadAccountsForChannel = async (channelId: string) => {
     try {
       const data = await invoke<ChannelAccount[]>('get_channel_accounts', {
-        channelId,
+        channel_id: channelId,
       });
       setAccounts((prev) => ({ ...prev, [channelId]: data }));
     } catch (error) {
@@ -167,7 +174,7 @@ export default function Channels() {
 
   const handleSetDefaultAccount = async (accountId: string) => {
     try {
-      await invoke('set_default_channel_account', { accountId });
+      await invoke('set_default_channel_account', { account_id: accountId });
       await loadAccountsForChannel(selectedChannel!.id);
     } catch (error) {
       console.error('Failed to set default account:', error);
@@ -198,7 +205,6 @@ export default function Channels() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Channels List */}
           <div className="space-y-4">
             <h2 className="text-lg font-medium">Providers</h2>
             {channels.map((channel) => (
@@ -250,7 +256,6 @@ export default function Channels() {
             ))}
           </div>
 
-          {/* Channel Details / Accounts */}
           {selectedChannel && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -315,14 +320,12 @@ export default function Channels() {
                 </div>
               )}
 
-              {/* Health Check */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                 <h3 className="font-medium mb-3">Health Check</h3>
                 <button
                   onClick={async () => {
                     try {
                       await invoke('check_channel_health', { id: selectedChannel.id });
-                      // Refresh channels after health check
                       await loadChannels();
                     } catch (error) {
                       console.error('Health check failed:', error);
@@ -340,7 +343,6 @@ export default function Channels() {
         </div>
       )}
 
-      {/* Add Channel Modal */}
       {showAddChannel && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 rounded-lg p-6 max-w-md w-full">
@@ -399,7 +401,6 @@ export default function Channels() {
         </div>
       )}
 
-      {/* Add Account Modal */}
       {showAddAccount && selectedChannel && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 rounded-lg p-6 max-w-md w-full">

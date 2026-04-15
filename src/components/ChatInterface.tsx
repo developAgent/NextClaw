@@ -70,17 +70,9 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
     setIsLoading(true);
 
     try {
-      // Get API key from config (in real app, this would be stored securely)
-      const apiKey = localStorage.getItem('api_key');
-
-      if (!apiKey) {
-        throw new Error('API key not configured');
-      }
-
       const response = await invoke<string>('send_message', {
         message: content,
         sessionId,
-        apiKey,
       });
 
       const assistantMessage: Message = {

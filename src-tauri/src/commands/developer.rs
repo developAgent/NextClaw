@@ -144,9 +144,7 @@ async fn check_gateway(_app: &AppHandle) -> DiagnosticCheck {
 
 fn check_skills(db: &Database) -> DiagnosticCheck {
     match db.transaction(|conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
-        let mut stmt = conn.prepare(
-            "SELECT COUNT(*) as count FROM skill_marketplace WHERE installed = TRUE"
-        )?;
+        let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM skills")?;
 
         let mut rows = stmt.query([])?;
 
@@ -179,9 +177,7 @@ fn check_skills(db: &Database) -> DiagnosticCheck {
 
 fn check_configuration(db: &Database) -> DiagnosticCheck {
     match db.transaction(|conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
-        let mut stmt = conn.prepare(
-            "SELECT COUNT(*) as count FROM app_settings"
-        )?;
+        let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM settings")?;
 
         let mut rows = stmt.query([])?;
 

@@ -50,6 +50,15 @@ semver = "1.0"
 cron = "0.12"
 bytes = "1.0"
 
+# Automation dependencies
+tesseract.workspace = true
+leptonica-plumbing.workspace = true
+screenshots.workspace = true
+image.workspace = true
+enigo.workspace = true
+rdev.workspace = true
+evalexpr.workspace = true
+
 # Keychain storage
 keyring.workspace = true
 

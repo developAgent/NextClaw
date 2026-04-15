@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Plus, Trash2, Settings, X } from 'lucide-react';
+import { Send, Plus, Trash2, Bot, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
@@ -13,33 +13,48 @@ interface Message {
 
 interface Session {
   id: string;
+  agent_id?: string | null;
   title: string;
   created_at: string;
+  updated_at?: string;
 }
 
-interface ChatCompletionRequest {
-  model: string;
-  messages: Array<{ role: string; content: string }>;
-  temperature?: number;
-  max_tokens?: number;
+interface Agent {
+  id: string;
+  name: string;
+  description?: string;
+  provider_id?: string;
+  model_id?: string;
+  system_prompt?: string;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return 'Unknown error';
 }
 
 export default function Chat() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'anthropic'>('openai');
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o-mini');
+  const [selectedAgentId, setSelectedAgentId] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadSessions();
+    loadInitialData();
 
-    // Listen for streaming events
     const unlisten = listen<string>('chat:stream', (event) => {
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1];
@@ -56,7 +71,7 @@ export default function Chat() {
     });
 
     return () => {
-      unlisten.then(fn => fn());
+      unlisten.then((fn) => fn());
     };
   }, []);
 
@@ -68,13 +83,45 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const loadInitialData = async () => {
+    await Promise.all([loadAgents(), loadSessions()]);
+  };
+
+  const loadAgents = async () => {
+    try {
+      const data = await invoke<Agent[]>('get_all_agents');
+      setAgents(data);
+      setSelectedAgentId((current) => {
+        if (current && data.some((agent) => agent.id === current)) {
+          return current;
+        }
+        return data[0]?.id ?? '';
+      });
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+    }
+  };
+
   const loadSessions = async () => {
     try {
       const sessionsData = await invoke<Session[]>('list_sessions');
       setSessions(sessionsData);
-      if (sessionsData.length > 0 && !currentSession) {
-        setCurrentSession(sessionsData[0]);
-        await loadMessages(sessionsData[0].id);
+
+      if (sessionsData.length > 0) {
+        setCurrentSession((current) => {
+          const nextSession = current
+            ? sessionsData.find((session) => session.id === current.id) ?? sessionsData[0]
+            : sessionsData[0];
+
+          void loadMessages(nextSession.id);
+          if (nextSession.agent_id) {
+            setSelectedAgentId(nextSession.agent_id);
+          }
+          return nextSession;
+        });
+      } else {
+        setCurrentSession(null);
+        setMessages([]);
       }
     } catch (error) {
       console.error('Failed to load sessions:', error);
@@ -96,10 +143,14 @@ export default function Chat() {
     try {
       const session = await invoke<Session>('create_session', {
         title: 'New Chat',
+        agentId: selectedAgentId || undefined,
       });
-      setSessions([...sessions, session]);
+      setSessions((prev) => [session, ...prev]);
       setCurrentSession(session);
       setMessages([]);
+      if (session.agent_id) {
+        setSelectedAgentId(session.agent_id);
+      }
     } catch (error) {
       console.error('Failed to create session:', error);
     }
@@ -108,7 +159,7 @@ export default function Chat() {
   const deleteSession = async (sessionId: string) => {
     try {
       await invoke('delete_session', { sessionId });
-      setSessions(sessions.filter((s) => s.id !== sessionId));
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
       if (currentSession?.id === sessionId) {
         setCurrentSession(null);
         setMessages([]);
@@ -120,114 +171,80 @@ export default function Chat() {
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
+    if (!selectedAgentId && !currentSession?.agent_id) {
+      alert('Please select an agent first.');
+      return;
+    }
 
+    const userContent = inputValue.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue,
+      content: userContent,
       timestamp: new Date().toISOString(),
     };
 
-    setMessages([...messages, userMessage]);
-    const userContent = inputValue;
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
+    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+      isStreaming: true,
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
     try {
-      // Create session if needed
-      let sessionId = currentSession?.id;
-      if (!currentSession) {
-        const session = await invoke<Session>('create_session', {
+      let session = currentSession;
+      if (!session) {
+        session = await invoke<Session>('create_session', {
           title: userContent.slice(0, 50) + (userContent.length > 50 ? '...' : ''),
+          agentId: selectedAgentId || undefined,
         });
-        setSessions([...sessions, session]);
+        setSessions((prev) => [session!, ...prev]);
         setCurrentSession(session);
-        sessionId = session.id;
       }
 
-      // Prepare conversation history
-      const conversationHistory = [
-        ...messages.filter(m => !m.isStreaming).map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
-        {
-          role: 'user',
-          content: userContent,
-        },
-      ];
+      const response = await invoke<string>('send_message', {
+        message: userContent,
+        sessionId: session.id,
+        agentId: (session.agent_id ?? selectedAgentId) || undefined,
+      });
 
-      // Add assistant message for streaming
-      const assistantMessageId = (Date.now() + 1).toString();
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date().toISOString(),
-        isStreaming: true,
+      const updatedSession: Session = {
+        ...session,
+        agent_id: (session.agent_id ?? selectedAgentId) || undefined,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
 
-      // Send request based on selected provider
-      if (selectedProvider === 'openai') {
-        const request: ChatCompletionRequest = {
-          model: selectedModel,
-          messages: conversationHistory,
-          temperature: 0.7,
-          max_tokens: 4096,
-        };
+      setCurrentSession(updatedSession);
+      setSessions((prev) => {
+        const others = prev.filter((item) => item.id !== updatedSession.id);
+        return [updatedSession, ...others];
+      });
 
-        const response = await invoke<{ content: string }>('create_chat_completion', {
-          request,
-        });
-
-        // Update with final response
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessageId
-              ? {
-                  ...m,
-                  content: response.content,
-                  isStreaming: false,
-                }
-              : m
-          )
-        );
-      } else {
-        // Anthropic
-        const request = {
-          model: selectedModel,
-          messages: conversationHistory,
-          temperature: 0.7,
-          max_tokens: 4096,
-        };
-
-        const response = await invoke<{ content: string }>('create_anthropic_message', {
-          request,
-        });
-
-        // Update with final response
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessageId
-              ? {
-                  ...m,
-                  content: response.content,
-                  isStreaming: false,
-                }
-              : m
-          )
-        );
-      }
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                content: response,
+                isStreaming: false,
+              }
+            : message
+        )
+      );
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Remove streaming message and show error
-      setMessages((prev) => prev.filter(m => !m.isStreaming));
+      setMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
 
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: 'Sorry, there was an error processing your request.',
+        content: `Sorry, there was an error processing your request. ${getErrorMessage(error)}`,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -239,26 +256,23 @@ export default function Chat() {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
   const selectSession = (session: Session) => {
     setCurrentSession(session);
-    loadMessages(session.id);
+    setSelectedAgentId(session.agent_id ?? selectedAgentId);
+    void loadMessages(session.id);
   };
 
-  const openAIModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-  const anthropicModels = ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-
-  const currentModels = selectedProvider === 'openai' ? openAIModels : anthropicModels;
+  const selectedAgent = agents.find((agent) => agent.id === (currentSession?.agent_id ?? selectedAgentId));
 
   return (
     <div className="flex h-full">
-      {/* Sidebar */}
       {sidebarOpen && (
-        <div className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
-          <div className="p-4 border-b border-zinc-800">
+        <div className="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+          <div className="p-4 border-b border-zinc-800 space-y-3">
             <button
               onClick={createNewSession}
               className="w-full flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -266,70 +280,109 @@ export default function Chat() {
               <Plus className="w-4 h-4" />
               <span className="text-sm">New Chat</span>
             </button>
+
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Agent</label>
+              <div className="relative">
+                <Bot className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <select
+                  value={currentSession?.agent_id ?? selectedAgentId}
+                  onChange={(e) => {
+                    if (currentSession?.agent_id) {
+                      return;
+                    }
+                    setSelectedAgentId(e.target.value);
+                  }}
+                  disabled={Boolean(currentSession?.agent_id) || agents.length === 0}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                >
+                  <option value="">Select agent</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {currentSession?.agent_id && (
+                <p className="mt-1 text-xs text-zinc-500">This session is bound to its selected agent.</p>
+              )}
+            </div>
+
+            {selectedAgent && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 text-xs text-zinc-400 space-y-1">
+                <div className="font-medium text-zinc-200">{selectedAgent.name}</div>
+                <div>{selectedAgent.provider_id || 'anthropic'} · {selectedAgent.model_id || 'default model'}</div>
+                {selectedAgent.description && <div className="line-clamp-2">{selectedAgent.description}</div>}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-2">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                onClick={() => selectSession(session)}
-                className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                  currentSession?.id === session.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-zinc-400 hover:bg-zinc-800'
-                }`}
-              >
-                <div className="flex-1 truncate text-sm">{session.title}</div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteSession(session.id);
-                  }}
-                  className="p-1 hover:bg-red-600/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            {sessions.map((session) => {
+              const sessionAgent = agents.find((agent) => agent.id === session.agent_id);
+              return (
+                <div
+                  key={session.id}
+                  onClick={() => selectSession(session)}
+                  className={`group px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                    currentSession?.id === session.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-zinc-400 hover:bg-zinc-800'
+                  }`}
                 >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-4 border-t border-zinc-800 space-y-2">
-            {/* Provider Selection */}
-            <select
-              value={selectedProvider}
-              onChange={(e) => {
-                setSelectedProvider(e.target.value as 'openai' | 'anthropic');
-                setSelectedModel(currentModels[0]);
-              }}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-            </select>
-
-            {/* Model Selection */}
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {currentModels.map((model) => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-sm">{session.title}</div>
+                      <div className={`truncate text-xs ${currentSession?.id === session.id ? 'text-blue-100' : 'text-zinc-500'}`}>
+                        {sessionAgent?.name || 'No agent'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void deleteSession(session.id);
+                      }}
+                      className="p-1 hover:bg-red-600/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Messages */}
+        <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold">{currentSession?.title || 'Chat'}</h1>
+            <p className="text-sm text-zinc-500">
+              {selectedAgent
+                ? `${selectedAgent.name} · ${selectedAgent.provider_id || 'anthropic'} · ${selectedAgent.model_id || 'default model'}`
+                : 'Select an agent to start chatting'}
+            </p>
+          </div>
+          <button
+            onClick={() => setSidebarOpen((open) => !open)}
+            className="px-3 py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-6">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-zinc-500">
-              <div className="text-center">
+              <div className="text-center max-w-md">
                 <p className="text-lg mb-2">Start a new conversation</p>
-                <p className="text-sm">Type a message below or create a new session</p>
+                <p className="text-sm">
+                  {selectedAgent
+                    ? `Your messages will be sent through ${selectedAgent.name}.`
+                    : 'Create an agent first, then choose it here to start chatting.'}
+                </p>
               </div>
             </div>
           )}
@@ -337,15 +390,15 @@ export default function Chat() {
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex mb-4 ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
+              className={`flex mb-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`max-w-[70%] rounded-lg px-4 py-2 ${
                   message.role === 'user'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-100'
+                    : message.role === 'system'
+                      ? 'bg-zinc-900 border border-zinc-800 text-zinc-300'
+                      : 'bg-zinc-800 text-zinc-100'
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">
@@ -356,7 +409,7 @@ export default function Chat() {
             </div>
           ))}
 
-          {isLoading && !messages.find(m => m.isStreaming) && (
+          {isLoading && !messages.find((message) => message.isStreaming) && (
             <div className="flex justify-start mb-4">
               <div className="bg-zinc-800 rounded-lg px-4 py-2">
                 <div className="flex items-center gap-2">
@@ -371,28 +424,21 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="border-t border-zinc-800 p-4">
           <div className="flex gap-2">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="px-3 py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              {sidebarOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-            </button>
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type a message..."
+              onKeyDown={handleKeyPress}
+              placeholder={selectedAgent ? `Message ${selectedAgent.name}...` : 'Select an agent before typing...'}
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={1}
               style={{ minHeight: '40px', maxHeight: '120px' }}
-              disabled={isLoading}
+              disabled={isLoading || (!selectedAgent && !currentSession?.agent_id)}
             />
             <button
-              onClick={handleSend}
-              disabled={isLoading || !inputValue.trim()}
+              onClick={() => void handleSend()}
+              disabled={isLoading || !inputValue.trim() || (!selectedAgent && !currentSession?.agent_id)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               <Send className="w-5 h-5" />

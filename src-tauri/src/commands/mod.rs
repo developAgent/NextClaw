@@ -17,3 +17,4 @@ pub mod proxy;
 pub mod settings;
 pub mod updates;
 pub mod wasm;
+pub mod workspace;

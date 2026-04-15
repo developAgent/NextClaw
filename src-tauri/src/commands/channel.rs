@@ -1,4 +1,4 @@
-use crate::channels::{Channel, ChannelConfig, ChannelHealth, ChannelManager, ChannelProvider};
+use crate::channels::{Channel, ChannelConfig, ChannelHealth, ChannelManager};
 use crate::utils::error::Result;
 use tauri::State;
 use tracing::info;

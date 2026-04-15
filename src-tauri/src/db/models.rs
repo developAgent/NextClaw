@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: Uuid,
+    pub agent_id: Option<String>,
     pub title: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -15,10 +16,11 @@ pub struct Session {
 
 impl Session {
     #[must_use]
-    pub fn new(title: String) -> Self {
+    pub fn new(title: String, agent_id: Option<String>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
+            agent_id,
             title,
             created_at: now,
             updated_at: now,
@@ -203,8 +205,9 @@ mod tests {
 
     #[test]
     fn test_session_creation() {
-        let session = Session::new("Test Session".to_string());
+        let session = Session::new("Test Session".to_string(), None);
         assert_eq!(session.title, "Test Session");
+        assert!(session.agent_id.is_none());
         assert!(session.created_at <= Utc::now());
     }
 
