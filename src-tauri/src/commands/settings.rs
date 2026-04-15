@@ -23,8 +23,20 @@ pub fn get_config(
             "maxRetries": config.api.max_retries,
             "apiKeyConfigured": api_key_exists
         },
-        "commands": config.commands,
-        "ui": config.ui
+        "commands": {
+            "timeoutSecs": config.commands.timeout_secs,
+            "allowShell": config.commands.allow_shell,
+            "whitelist": config.commands.whitelist,
+            "blacklist": config.commands.blacklist,
+            "sandboxPath": config.commands.sandbox_path,
+            "requireConfirmation": config.commands.require_confirmation
+        },
+        "ui": {
+            "theme": config.ui.theme,
+            "fontSize": config.ui.font_size,
+            "showTimestamps": config.ui.show_timestamps,
+            "maxHistory": config.ui.max_history
+        }
     });
 
     Ok(config_json.to_string())
@@ -48,6 +60,9 @@ pub fn update_config(config_update: String) -> Result<()> {
     if let Some(max_retries) = update.max_retries {
         current_config.api.max_retries = max_retries;
     }
+    if let Some(timeout_secs) = update.timeout_secs {
+        current_config.commands.timeout_secs = timeout_secs;
+    }
     if let Some(whitelist) = update.whitelist {
         current_config.commands.whitelist = whitelist;
     }
@@ -59,6 +74,15 @@ pub fn update_config(config_update: String) -> Result<()> {
     }
     if let Some(require_confirmation) = update.require_confirmation {
         current_config.commands.require_confirmation = require_confirmation;
+    }
+    if let Some(theme) = update.theme {
+        current_config.ui.theme = theme;
+    }
+    if let Some(font_size) = update.font_size {
+        current_config.ui.font_size = font_size;
+    }
+    if let Some(show_timestamps) = update.show_timestamps {
+        current_config.ui.show_timestamps = show_timestamps;
     }
 
     current_config.save()?;
@@ -93,6 +117,7 @@ pub fn delete_api_key(
 // Data structures for config updates
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfigUpdate {
     pub claude_model: Option<String>,
     pub request_timeout_secs: Option<u64>,
@@ -102,6 +127,9 @@ pub struct ConfigUpdate {
     pub blacklist: Option<Vec<String>>,
     pub sandbox_path: Option<String>,
     pub require_confirmation: Option<bool>,
+    pub theme: Option<String>,
+    pub font_size: Option<u16>,
+    pub show_timestamps: Option<bool>,
 }
 
 #[cfg(test)]
