@@ -60,7 +60,10 @@ impl SecurityValidator {
 
         // If whitelist is not empty, check if command matches
         if !self.whitelist.is_empty() {
-            let allowed = self.whitelist.iter().any(|pattern| pattern.is_match(command));
+            let allowed = self
+                .whitelist
+                .iter()
+                .any(|pattern| pattern.is_match(command));
             if !allowed {
                 warn!("Command blocked by whitelist: {}", command);
                 return Err(AppError::Security(format!(
@@ -136,7 +139,12 @@ impl SecurityValidator {
     #[must_use]
     pub fn requires_confirmation(&self, command: &str) -> bool {
         let high_risk_patterns = [
-            r"rm\s+", r"dd\b", r"mkfs\b", r"format\b", r"del\s+", r"rmdir",
+            r"rm\s+",
+            r"dd\b",
+            r"mkfs\b",
+            r"format\b",
+            r"del\s+",
+            r"rmdir",
         ];
 
         for pattern in &high_risk_patterns {
@@ -165,11 +173,7 @@ mod tests {
 
     #[test]
     fn test_blacklist() {
-        let validator = SecurityValidator::new(
-            vec![],
-            vec![r"rm -rf /".to_string()],
-            None,
-        );
+        let validator = SecurityValidator::new(vec![], vec![r"rm -rf /".to_string()], None);
 
         assert!(validator.validate_command("rm -rf /").is_err());
         assert!(validator.validate_command("ls -la").is_ok());

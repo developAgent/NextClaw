@@ -69,7 +69,10 @@ impl ChannelAccountManager {
     }
 
     /// Create a new channel account
-    pub async fn create_account(&self, request: CreateChannelAccountRequest) -> Result<ChannelAccount> {
+    pub async fn create_account(
+        &self,
+        request: CreateChannelAccountRequest,
+    ) -> Result<ChannelAccount> {
         let creds_json = serde_json::to_string(&request.credentials)
             .map_err(|e| AppError::Internal(format!("Failed to serialize credentials: {}", e)))?;
 
@@ -83,7 +86,8 @@ impl ChannelAccountManager {
             db.execute(
                 "UPDATE channel_accounts SET is_default = 0 WHERE channel_id = ?1",
                 params![&request.channel_id],
-            ).map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
+            )
+            .map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
         }
 
         db.execute(
@@ -109,10 +113,12 @@ impl ChannelAccountManager {
     /// Get all accounts for a channel
     pub async fn get_accounts_for_channel(&self, channel_id: &str) -> Result<Vec<ChannelAccount>> {
         let db = self.db.lock().await;
-        let mut stmt = db.prepare(
-            "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
-             FROM channel_accounts WHERE channel_id = ?1 ORDER BY is_default DESC, created_at"
-        ).map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?;
+        let mut stmt = db
+            .prepare(
+                "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
+             FROM channel_accounts WHERE channel_id = ?1 ORDER BY is_default DESC, created_at",
+            )
+            .map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?;
 
         let accounts = stmt
             .query_map(params![channel_id], |row| {
@@ -136,10 +142,12 @@ impl ChannelAccountManager {
     /// Get all accounts
     pub async fn get_all_accounts(&self) -> Result<Vec<ChannelAccount>> {
         let db = self.db.lock().await;
-        let mut stmt = db.prepare(
-            "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
-             FROM channel_accounts ORDER BY channel_id, is_default DESC, created_at"
-        ).map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?;
+        let mut stmt = db
+            .prepare(
+                "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
+             FROM channel_accounts ORDER BY channel_id, is_default DESC, created_at",
+            )
+            .map_err(|e| AppError::Database(format!("Failed to query accounts: {}", e)))?;
 
         let accounts = stmt
             .query_map([], |row| {
@@ -164,10 +172,12 @@ impl ChannelAccountManager {
     /// Get a specific account
     pub async fn get_account(&self, id: &str) -> Result<Option<ChannelAccount>> {
         let db = self.db.lock().await;
-        let mut stmt = db.prepare(
-            "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
-             FROM channel_accounts WHERE id = ?1"
-        ).map_err(|e| AppError::Database(format!("Failed to query account: {}", e)))?;
+        let mut stmt = db
+            .prepare(
+                "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at
+             FROM channel_accounts WHERE id = ?1",
+            )
+            .map_err(|e| AppError::Database(format!("Failed to query account: {}", e)))?;
 
         let account = stmt
             .query_row(params![id], |row| {
@@ -187,7 +197,10 @@ impl ChannelAccountManager {
     }
 
     /// Update an account
-    pub async fn update_account(&self, request: UpdateChannelAccountRequest) -> Result<ChannelAccount> {
+    pub async fn update_account(
+        &self,
+        request: UpdateChannelAccountRequest,
+    ) -> Result<ChannelAccount> {
         let db = self.db.lock().await;
 
         // If setting as default, clear other defaults for the same channel
@@ -196,7 +209,8 @@ impl ChannelAccountManager {
                 db.execute(
                     "UPDATE channel_accounts SET is_default = 0 WHERE channel_id = ?1",
                     params![&account.channel_id],
-                ).map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
+                )
+                .map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
             }
         }
 
@@ -210,8 +224,9 @@ impl ChannelAccountManager {
         }
         if let Some(creds) = &request.credentials {
             updates.push("credentials = ?");
-            let creds_json = serde_json::to_string(creds)
-                .map_err(|e| AppError::Internal(format!("Failed to serialize credentials: {}", e)))?;
+            let creds_json = serde_json::to_string(creds).map_err(|e| {
+                AppError::Internal(format!("Failed to serialize credentials: {}", e))
+            })?;
             params.push(Box::new(creds_json));
         }
         if let Some(is_default) = request.is_default {
@@ -229,23 +244,28 @@ impl ChannelAccountManager {
             params.len() - updates.len() - 1
         );
 
-        let count = db.execute(&query, rusqlite::params_from_iter(params))
+        let count = db
+            .execute(&query, rusqlite::params_from_iter(params))
             .map_err(|e| AppError::Database(format!("Failed to update account: {}", e)))?;
 
         if count == 0 {
-            return Err(AppError::Validation(format!("Account not found: {}", request.id)));
+            return Err(AppError::Validation(format!(
+                "Account not found: {}",
+                request.id
+            )));
         }
 
-        self.get_account(&request.id).await?.ok_or_else(|| {
-            AppError::Internal("Failed to retrieve updated account".to_string())
-        })
+        self.get_account(&request.id)
+            .await?
+            .ok_or_else(|| AppError::Internal("Failed to retrieve updated account".to_string()))
     }
 
     /// Delete an account
     pub async fn delete_account(&self, id: &str) -> Result<()> {
         let db = self.db.lock().await;
 
-        let count = db.execute("DELETE FROM channel_accounts WHERE id = ?1", params![id])
+        let count = db
+            .execute("DELETE FROM channel_accounts WHERE id = ?1", params![id])
             .map_err(|e| AppError::Database(format!("Failed to delete account: {}", e)))?;
 
         if count == 0 {
@@ -258,22 +278,29 @@ impl ChannelAccountManager {
 
     /// Set account as default for its channel
     pub async fn set_default_account(&self, account_id: &str) -> Result<()> {
-        let account = self.get_account(account_id).await?
+        let account = self
+            .get_account(account_id)
+            .await?
             .ok_or_else(|| AppError::Validation(format!("Account not found: {}", account_id)))?;
 
         let db = self.db.lock().await;
 
         db.execute(
             "UPDATE channel_accounts SET is_default = 0 WHERE channel_id = ?1",
-            params![&account.channel_id]
-        ).map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
+            params![&account.channel_id],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to clear defaults: {}", e)))?;
 
         db.execute(
             "UPDATE channel_accounts SET is_default = 1 WHERE id = ?1",
-            params![account_id]
-        ).map_err(|e| AppError::Database(format!("Failed to set default: {}", e)))?;
+            params![account_id],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to set default: {}", e)))?;
 
-        info!("Set default account: {} for channel: {}", account_id, account.channel_id);
+        info!(
+            "Set default account: {} for channel: {}",
+            account_id, account.channel_id
+        );
         Ok(())
     }
 }
@@ -285,8 +312,7 @@ mod tests {
     #[test]
     fn test_account_creation() {
         let creds = serde_json::json!({"api_key": "test"});
-        let account = ChannelAccount::new("channel-1", "Test Account")
-            .with_credentials(creds);
+        let account = ChannelAccount::new("channel-1", "Test Account").with_credentials(creds);
 
         assert!(account.is_ok());
         let acc = account.unwrap();

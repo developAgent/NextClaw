@@ -1,11 +1,13 @@
 //! Chat V2 commands with OpenAI integration
 //! Provides Tauri commands for AI chat functionality
 
-use crate::providers::{OpenAIConfig, OpenAIProvider, ChatMessage, MessageRole, ChatCompletionRequest};
+use crate::providers::{
+    ChatCompletionRequest, ChatMessage, MessageRole, OpenAIConfig, OpenAIProvider,
+};
 use crate::utils::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 use tokio::sync::Mutex;
 
 /// Chat completion request payload
@@ -64,13 +66,15 @@ pub async fn create_chat_completion(
 ) -> Result<ChatCompletionResponsePayload> {
     let provider = {
         let provider_guard = state.provider.lock().await;
-        provider_guard.as_ref()
+        provider_guard
+            .as_ref()
             .ok_or_else(|| AppError::Validation("OpenAI provider not configured".to_string()))?
             .clone()
     };
 
     // Convert payload to internal types
-    let messages: Vec<ChatMessage> = request.messages
+    let messages: Vec<ChatMessage> = request
+        .messages
         .into_iter()
         .map(|m| -> Result<ChatMessage> {
             Ok(ChatMessage {
@@ -96,14 +100,15 @@ pub async fn create_chat_completion(
     }
 
     let response = tokio::task::spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async {
-            provider.create_chat_completion(completion_request).await
-        })
+        tokio::runtime::Handle::current()
+            .block_on(async { provider.create_chat_completion(completion_request).await })
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
 
-    let choice = response.choices.first()
+    let choice = response
+        .choices
+        .first()
         .ok_or_else(|| AppError::Internal("No choices in response".to_string()))?;
 
     Ok(ChatCompletionResponsePayload {
@@ -121,25 +126,23 @@ pub async fn create_chat_completion(
 
 /// List available models
 #[tauri::command]
-pub async fn list_models(
-    state: State<'_, OpenAIState>,
-) -> Result<Vec<ModelInfoPayload>> {
+pub async fn list_models(state: State<'_, OpenAIState>) -> Result<Vec<ModelInfoPayload>> {
     let provider = {
         let provider_guard = state.provider.lock().await;
-        provider_guard.as_ref()
+        provider_guard
+            .as_ref()
             .ok_or_else(|| AppError::Validation("OpenAI provider not configured".to_string()))?
             .clone()
     };
 
     let models_response = tokio::task::spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async {
-            provider.list_models().await
-        })
+        tokio::runtime::Handle::current().block_on(async { provider.list_models().await })
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
 
-    let models: Vec<ModelInfoPayload> = models_response.data
+    let models: Vec<ModelInfoPayload> = models_response
+        .data
         .into_iter()
         .map(|m| ModelInfoPayload {
             id: m.id.clone(),
@@ -153,19 +156,14 @@ pub async fn list_models(
 
 /// Validate API key
 #[tauri::command]
-pub async fn validate_api_key(
-    api_key: String,
-    base_url: Option<String>,
-) -> Result<bool> {
+pub async fn validate_api_key(api_key: String, base_url: Option<String>) -> Result<bool> {
     let config = OpenAIConfig::new(api_key)
         .with_base_url(base_url.unwrap_or_else(|| "https://api.openai.com/v1".to_string()));
 
     let provider = OpenAIProvider::new(config)?;
 
     let is_valid = tokio::task::spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async {
-            provider.validate_api_key().await
-        })
+        tokio::runtime::Handle::current().block_on(async { provider.validate_api_key().await })
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;

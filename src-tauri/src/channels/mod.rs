@@ -1,5 +1,5 @@
-pub mod types;
 pub mod manager;
+pub mod types;
 
-pub use types::{Channel, ChannelConfig, ChannelHealth};
 pub use manager::ChannelManager;
+pub use types::{Channel, ChannelConfig, ChannelHealth};

@@ -1,10 +1,11 @@
 use crate::db::Database;
+use crate::hotkeys::{HotkeyRegistry, RegisteredHotkey};
 use crate::utils::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use tauri::State;
-use uuid::Uuid;
-use tracing::info;
 use std::sync::Arc;
+use tauri::State;
+use tracing::info;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Hotkey {
@@ -16,30 +17,76 @@ pub struct Hotkey {
     pub updated_at: i64,
 }
 
-/// Get all hotkeys
-#[tauri::command]
-pub async fn get_all_hotkeys(db: State<'_, Arc<Database>>) -> Result<Vec<Hotkey>> {
+#[derive(Debug, Serialize)]
+pub struct RegisteredHotkeysResponse {
+    pub registered: Vec<RegisteredHotkey>,
+}
+
+fn validate_action(action: &str) -> Result<()> {
+    let normalized = action.trim();
+    if normalized.is_empty() {
+        return Err(AppError::Validation(
+            "Hotkey action is required".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn normalize_key_combination(key_combination: &str) -> Result<String> {
+    let normalized = key_combination
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(|part| part.to_ascii_uppercase())
+        .collect::<Vec<_>>()
+        .join("+");
+
+    if normalized.is_empty() {
+        return Err(AppError::Validation(
+            "Hotkey key combination is required".to_string(),
+        ));
+    }
+
+    Ok(normalized)
+}
+
+fn read_hotkeys(db: &Database) -> Result<Vec<Hotkey>> {
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
 
     let mut stmt = conn_guard
-        .prepare("SELECT id, action, key_combination, enabled, created_at, updated_at FROM hotkeys")
+        .prepare(
+            "SELECT id, action, key_combination, enabled, created_at, updated_at FROM hotkeys ORDER BY created_at DESC",
+        )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
-    let hotkeys = stmt.query_map([], |row| {
-        Ok(Hotkey {
-            id: row.get(0)?,
-            action: row.get(1)?,
-            key_combination: row.get(2)?,
-            enabled: row.get(3)?,
-            created_at: row.get(4)?,
-            updated_at: row.get(5)?,
+    let hotkeys = stmt
+        .query_map([], |row| {
+            Ok(Hotkey {
+                id: row.get(0)?,
+                action: row.get(1)?,
+                key_combination: row.get(2)?,
+                enabled: row.get::<_, i64>(3)? != 0,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
         })
-    }).map_err(|e| AppError::Database(e.to_string()))?
-    .collect::<std::result::Result<Vec<_>, _>>()
-    .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
     Ok(hotkeys)
+}
+
+async fn sync_registry(db: &Database, registry: &HotkeyRegistry) -> Result<Vec<RegisteredHotkey>> {
+    registry.load_enabled_from_db(db).await
+}
+
+/// Get all hotkeys
+#[tauri::command]
+pub async fn get_all_hotkeys(db: State<'_, Arc<Database>>) -> Result<Vec<Hotkey>> {
+    read_hotkeys(db.inner().as_ref())
 }
 
 /// Add a new hotkey
@@ -48,24 +95,37 @@ pub async fn add_hotkey(
     action: String,
     key_combination: String,
     db: State<'_, Arc<Database>>,
+    registry: State<'_, Arc<HotkeyRegistry>>,
 ) -> Result<Hotkey> {
+    validate_action(&action)?;
+    let normalized_key_combination = normalize_key_combination(&key_combination)?;
+
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
 
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    conn_guard.execute(
-        "INSERT INTO hotkeys (id, action, key_combination, enabled, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![&id, &action, &key_combination, true, now, now],
-    ).map_err(|e| AppError::Database(e.to_string()))?;
+    conn_guard
+        .execute(
+            "INSERT INTO hotkeys (id, action, key_combination, enabled, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![&id, action.trim(), &normalized_key_combination, 1, now, now],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
-    info!("Added hotkey: {} -> {}", key_combination, action);
+    drop(conn_guard);
+    sync_registry(db.inner().as_ref(), registry.inner().as_ref()).await?;
+
+    info!(
+        "Added hotkey: {} -> {}",
+        normalized_key_combination,
+        action.trim()
+    );
 
     Ok(Hotkey {
         id,
-        action,
-        key_combination,
+        action: action.trim().to_string(),
+        key_combination: normalized_key_combination,
         enabled: true,
         created_at: now,
         updated_at: now,
@@ -76,16 +136,60 @@ pub async fn add_hotkey(
 #[tauri::command]
 pub async fn update_hotkey(
     id: String,
-    key_combination: String,
+    action: Option<String>,
+    key_combination: Option<String>,
+    enabled: Option<bool>,
     db: State<'_, Arc<Database>>,
+    registry: State<'_, Arc<HotkeyRegistry>>,
 ) -> Result<()> {
+    if action.is_none() && key_combination.is_none() && enabled.is_none() {
+        return Err(AppError::Validation(
+            "No hotkey fields were provided for update".to_string(),
+        ));
+    }
+
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
 
-    conn_guard.execute(
-        "UPDATE hotkeys SET key_combination = ?1, updated_at = ?2 WHERE id = ?3",
-        rusqlite::params![key_combination, chrono::Utc::now().timestamp(), id],
-    ).map_err(|e| AppError::Database(e.to_string()))?;
+    let existing = conn_guard
+        .query_row(
+            "SELECT action, key_combination, enabled FROM hotkeys WHERE id = ?1",
+            [&id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)? != 0,
+                ))
+            },
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let next_action = match action {
+        Some(value) => {
+            validate_action(&value)?;
+            value.trim().to_string()
+        }
+        None => existing.0,
+    };
+
+    let next_key_combination = match key_combination {
+        Some(value) => normalize_key_combination(&value)?,
+        None => existing.1,
+    };
+
+    let next_enabled = enabled.unwrap_or(existing.2);
+
+    let hotkey_id = id.clone();
+    conn_guard
+        .execute(
+            "UPDATE hotkeys SET action = ?1, key_combination = ?2, enabled = ?3, updated_at = ?4 WHERE id = ?5",
+            rusqlite::params![next_action, next_key_combination, if next_enabled { 1 } else { 0 }, chrono::Utc::now().timestamp(), hotkey_id],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    drop(conn_guard);
+    sync_registry(db.inner().as_ref(), registry.inner().as_ref()).await?;
 
     info!("Updated hotkey: {}", id);
     Ok(())
@@ -93,28 +197,49 @@ pub async fn update_hotkey(
 
 /// Delete a hotkey
 #[tauri::command]
-pub async fn delete_hotkey(id: String, db: State<'_, Arc<Database>>) -> Result<()> {
+pub async fn delete_hotkey(
+    id: String,
+    db: State<'_, Arc<Database>>,
+    registry: State<'_, Arc<HotkeyRegistry>>,
+) -> Result<()> {
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
 
-    conn_guard.execute("DELETE FROM hotkeys WHERE id = ?1", [&id])
+    conn_guard
+        .execute("DELETE FROM hotkeys WHERE id = ?1", [&id])
         .map_err(|e| AppError::Database(e.to_string()))?;
+
+    drop(conn_guard);
+    registry.remove(&id).await;
 
     info!("Deleted hotkey: {}", id);
     Ok(())
 }
 
-/// Register all hotkeys (placeholder - needs platform-specific implementation)
+/// Sync enabled hotkeys into the runtime registry
 #[tauri::command]
-pub async fn register_hotkeys(db: State<'_, Arc<Database>>) -> Result<()> {
-    let hotkeys = get_all_hotkeys(db).await?;
+pub async fn register_hotkeys(
+    db: State<'_, Arc<Database>>,
+    registry: State<'_, Arc<HotkeyRegistry>>,
+) -> Result<RegisteredHotkeysResponse> {
+    let registered = sync_registry(db.inner().as_ref(), registry.inner().as_ref()).await?;
 
-    for hotkey in hotkeys {
-        if hotkey.enabled {
-            info!("Would register hotkey: {} -> {}", hotkey.key_combination, hotkey.action);
-            // TODO: Platform-specific hotkey registration
-        }
+    for hotkey in &registered {
+        info!(
+            "Registered hotkey: {} -> {}",
+            hotkey.key_combination, hotkey.action
+        );
     }
 
-    Ok(())
+    Ok(RegisteredHotkeysResponse { registered })
+}
+
+/// Get runtime registered hotkeys
+#[tauri::command]
+pub async fn get_registered_hotkeys(
+    registry: State<'_, Arc<HotkeyRegistry>>,
+) -> Result<RegisteredHotkeysResponse> {
+    Ok(RegisteredHotkeysResponse {
+        registered: registry.list().await,
+    })
 }

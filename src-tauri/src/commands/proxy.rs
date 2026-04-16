@@ -1,8 +1,9 @@
+use crate::db::connection::Database;
+use reqwest::Proxy;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::db::connection::Database;
-use rusqlite::params;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// Proxy configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,22 +29,24 @@ pub enum ProxyType {
 /// Get proxy configuration
 #[tauri::command]
 pub async fn get_proxy_config(db: State<'_, Database>) -> Result<Option<ProxyConfig>, String> {
-    db.transaction(|conn| -> rusqlite::Result<Option<ProxyConfig>, rusqlite::Error> {
-        let mut stmt = conn.prepare(
-            "SELECT value FROM gateway_config WHERE id = 'proxy_config'"
-        )?;
+    db.transaction(
+        |conn| -> rusqlite::Result<Option<ProxyConfig>, rusqlite::Error> {
+            let mut stmt =
+                conn.prepare("SELECT value FROM gateway_config WHERE id = 'proxy_config'")?;
 
-        let mut rows = stmt.query([])?;
+            let mut rows = stmt.query([])?;
 
-        if let Some(row) = rows.next()? {
-            let value: String = row.get(0)?;
-            let config: ProxyConfig = serde_json::from_str(&value)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-            Ok(Some(config))
-        } else {
-            Ok(None)
-        }
-    }).map_err(|e| format!("Failed to query proxy config: {}", e))
+            if let Some(row) = rows.next()? {
+                let value: String = row.get(0)?;
+                let config: ProxyConfig = serde_json::from_str(&value)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                Ok(Some(config))
+            } else {
+                Ok(None)
+            }
+        },
+    )
+    .map_err(|e| format!("Failed to query proxy config: {}", e))
 }
 
 /// Set proxy configuration
@@ -72,7 +75,10 @@ pub async fn set_proxy_config(db: State<'_, Database>, config: ProxyConfig) -> R
         Ok(())
     }).map_err(|e| format!("Failed to save proxy config: {}", e))?;
 
-    info!("Proxy configuration updated: enabled={}, server={}", config.enabled, config.server);
+    info!(
+        "Proxy configuration updated: enabled={}, server={}",
+        config.enabled, config.server
+    );
     Ok(())
 }
 
@@ -107,24 +113,70 @@ pub async fn disable_proxy(db: State<'_, Database>) -> Result<(), String> {
 /// Test proxy connection
 #[tauri::command]
 pub async fn test_proxy_connection(config: ProxyConfig) -> Result<TestResult, String> {
-    // In a real implementation, this would make a test request through the proxy
-    // For now, we'll simulate the test
+    if !config.enabled {
+        return Err("Proxy is disabled".to_string());
+    }
 
-    info!("Testing proxy connection to {}:{}", config.server, config.port);
+    let server = config.server.trim();
+    if server.is_empty() {
+        return Err("Proxy server is required".to_string());
+    }
 
-    // Simulate network delay
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    if config.port == 0 {
+        return Err("Proxy port must be greater than 0".to_string());
+    }
 
-    // In production, you would:
-    // 1. Create a reqwest client with the proxy configuration
-    // 2. Make a request to a known endpoint (e.g., https://api.anthropic.com)
-    // 3. Check the response status and timing
+    let proxy_url = match config.proxy_type {
+        ProxyType::Http => format!("http://{}:{}", server, config.port),
+        ProxyType::Https => format!("https://{}:{}", server, config.port),
+        ProxyType::Socks5 => format!("socks5h://{}:{}", server, config.port),
+    };
 
-    Ok(TestResult {
-        success: true,
-        latency_ms: 500,
-        message: "Proxy connection successful".to_string(),
-    })
+    info!("Testing proxy connection to {}", proxy_url);
+
+    let proxy =
+        Proxy::all(&proxy_url).map_err(|e| format!("Invalid proxy configuration: {}", e))?;
+    let proxy = if let Some(username) = config.username.as_deref() {
+        if username.is_empty() {
+            proxy
+        } else {
+            proxy.basic_auth(username, config.password.as_deref().unwrap_or(""))
+        }
+    } else {
+        proxy
+    };
+
+    let client = reqwest::Client::builder()
+        .proxy(proxy)
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create proxy client: {}", e))?;
+
+    let start = std::time::Instant::now();
+    let response = client
+        .get("https://api.anthropic.com")
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Proxy connection test failed: {}", e);
+            format!("Proxy connection failed: {}", e)
+        })?;
+
+    let latency_ms = start.elapsed().as_millis() as u64;
+    let status = response.status();
+
+    if status.is_success() || status.as_u16() == 401 || status.as_u16() == 403 {
+        Ok(TestResult {
+            success: true,
+            latency_ms,
+            message: format!("Proxy connection successful ({})", status),
+        })
+    } else {
+        Err(format!(
+            "Proxy responded with unexpected status: {}",
+            status
+        ))
+    }
 }
 
 /// Test result structure
@@ -150,18 +202,16 @@ pub fn get_default_bypass_rules() -> Vec<String> {
 #[tauri::command]
 pub async fn reset_proxy_config(db: State<'_, Database>) -> Result<(), String> {
     db.transaction(|conn| -> rusqlite::Result<(), rusqlite::Error> {
-        conn.execute(
-            "DELETE FROM gateway_config WHERE id = 'proxy_config'",
-            []
-        )?;
+        conn.execute("DELETE FROM gateway_config WHERE id = 'proxy_config'", [])?;
 
         conn.execute(
             "DELETE FROM gateway_config WHERE id = 'proxy_config_full'",
-            []
+            [],
         )?;
 
         Ok(())
-    }).map_err(|e| format!("Failed to reset proxy config: {}", e))?;
+    })
+    .map_err(|e| format!("Failed to reset proxy config: {}", e))?;
 
     info!("Proxy configuration reset");
     Ok(())

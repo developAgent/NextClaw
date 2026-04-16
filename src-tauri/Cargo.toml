@@ -14,7 +14,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Workspace dependencies
 tauri.workspace = true
 tauri-plugin-shell.workspace = true
-tauri-plugin-updater.workspace = true
 tauri-plugin-notification.workspace = true
 tokio.workspace = true
 rusqlite.workspace = true
@@ -45,6 +44,7 @@ pin-project = "1.1"
 shlex = "1.1"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 wasmtime = "23.0"
+wasmtime-wasi = "23.0"
 base64 = "0.22"
 semver = "1.0"
 cron = "0.12"
@@ -70,6 +70,8 @@ rust-embed.workspace = true
 # This feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+default = ["tray-icon"]
+tray-icon = ["tauri/tray-icon"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

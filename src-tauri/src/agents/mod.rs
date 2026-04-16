@@ -245,24 +245,29 @@ impl AgentManager {
             params.len() - updates.len() - 1
         );
 
-        let count = db.execute(&query, rusqlite::params_from_iter(params))
+        let count = db
+            .execute(&query, rusqlite::params_from_iter(params))
             .map_err(|e| AppError::Database(format!("Failed to update agent: {}", e)))?;
 
         if count == 0 {
-            return Err(AppError::Validation(format!("Agent not found: {}", request.id)));
+            return Err(AppError::Validation(format!(
+                "Agent not found: {}",
+                request.id
+            )));
         }
 
         // Return updated agent
-        self.get_agent(&request.id).await?.ok_or_else(|| {
-            AppError::Internal("Failed to retrieve updated agent".to_string())
-        })
+        self.get_agent(&request.id)
+            .await?
+            .ok_or_else(|| AppError::Internal("Failed to retrieve updated agent".to_string()))
     }
 
     /// Delete an agent
     pub async fn delete_agent(&self, id: &str) -> Result<()> {
         let db = self.db.lock().await;
 
-        let count = db.execute("DELETE FROM agents WHERE id = ?1", params![id])
+        let count = db
+            .execute("DELETE FROM agents WHERE id = ?1", params![id])
             .map_err(|e| AppError::Database(format!("Failed to delete agent: {}", e)))?;
 
         if count == 0 {

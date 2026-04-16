@@ -36,7 +36,9 @@ pub async fn send_message(
         .agent_id
         .clone()
         .or(requested_agent_id)
-        .ok_or_else(|| AppError::Validation("Please select an agent before sending a message".to_string()))?;
+        .ok_or_else(|| {
+            AppError::Validation("Please select an agent before sending a message".to_string())
+        })?;
 
     let agent = agent_manager
         .get_agent(&resolved_agent_id)
@@ -80,7 +82,11 @@ pub fn get_chat_history(session_id: String, db: State<'_, Database>) -> Result<V
 
 /// Create a new chat session
 #[tauri::command]
-pub fn create_session(title: String, agent_id: Option<String>, db: State<'_, Database>) -> Result<Session> {
+pub fn create_session(
+    title: String,
+    agent_id: Option<String>,
+    db: State<'_, Database>,
+) -> Result<Session> {
     let session = Session::new(title, normalize_optional_string(agent_id));
     save_session(&db, &session)?;
     info!("Created new session: {}", session.id);
@@ -102,7 +108,10 @@ pub fn delete_session(session_id: String, db: State<'_, Database>) -> Result<()>
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
     conn_guard
-        .execute("DELETE FROM sessions WHERE id = ?1", [&session_uuid.to_string()])
+        .execute(
+            "DELETE FROM sessions WHERE id = ?1",
+            [&session_uuid.to_string()],
+        )
         .map_err(|e| AppError::Database(e.to_string()))?;
     info!("Deleted session: {}", session_id);
     Ok(())
@@ -126,7 +135,11 @@ fn default_model_for_provider(provider: &str) -> &'static str {
     }
 }
 
-async fn generate_agent_response(db: &Database, agent: &Agent, history: &[Message]) -> Result<String> {
+async fn generate_agent_response(
+    db: &Database,
+    agent: &Agent,
+    history: &[Message],
+) -> Result<String> {
     let provider = agent
         .provider_id
         .as_deref()
@@ -244,7 +257,9 @@ async fn generate_anthropic_response(
         .content
         .into_iter()
         .filter_map(|block| match block {
-            crate::providers::anthropic::ContentBlock { text: Some(text), .. } => Some(text),
+            crate::providers::anthropic::ContentBlock {
+                text: Some(text), ..
+            } => Some(text),
             _ => None,
         })
         .collect::<Vec<_>>()
@@ -263,9 +278,7 @@ fn get_session(db: &Database, session_id: Uuid) -> Result<Option<Session>> {
     let conn = db.conn();
     let conn_guard = conn.blocking_lock();
     let mut stmt = conn_guard
-        .prepare(
-            "SELECT id, agent_id, title, created_at, updated_at FROM sessions WHERE id = ?1",
-        )
+        .prepare("SELECT id, agent_id, title, created_at, updated_at FROM sessions WHERE id = ?1")
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let session = stmt
@@ -293,7 +306,11 @@ fn attach_agent_to_session(db: &Database, session_id: Uuid, agent_id: &str) -> R
     conn_guard
         .execute(
             "UPDATE sessions SET agent_id = ?1, updated_at = ?2 WHERE id = ?3",
-            rusqlite::params![agent_id, &chrono::Utc::now().to_rfc3339(), &session_id.to_string()],
+            rusqlite::params![
+                agent_id,
+                &chrono::Utc::now().to_rfc3339(),
+                &session_id.to_string()
+            ],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(())
@@ -398,7 +415,9 @@ fn list_all_sessions(db: &Database) -> Result<Vec<Session>> {
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut sessions = Vec::new();
-    let mut rows = stmt.query([]).map_err(|e| AppError::Database(e.to_string()))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
     while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
         let id: String = row.get(0).map_err(|e| AppError::Database(e.to_string()))?;

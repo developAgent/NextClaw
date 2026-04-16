@@ -3,9 +3,14 @@ use crate::skills::permissions::{Permission, PermissionSet};
 use crate::skills::sandbox::SandboxConfig;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{debug, error, info};
 use std::time::Duration;
+use tracing::{debug, info};
+use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime_wasi::pipe::MemoryOutputPipe;
+use wasmtime_wasi::preview1::{self, WasiP1Ctx};
+use wasmtime_wasi::WasiCtxBuilder;
 
 /// WASM runtime configuration
 #[derive(Debug, Clone)]
@@ -24,7 +29,7 @@ impl Default for WasmRuntimeConfig {
     fn default() -> Self {
         Self {
             max_execution_time: Duration::from_secs(30),
-            max_memory: Some(128 * 1024 * 1024), // 128MB
+            max_memory: Some(128 * 1024 * 1024),
             enable_wasi: true,
             debug: false,
         }
@@ -59,7 +64,7 @@ pub enum WasmArgument {
     #[serde(rename = "array")]
     Array(Vec<WasmArgument>),
     #[serde(rename = "object")]
-    Object(std::collections::HashMap<String, WasmArgument>),
+    Object(HashMap<String, WasmArgument>),
     #[serde(rename = "null")]
     Null,
 }
@@ -74,13 +79,12 @@ pub struct WasmModule {
 impl WasmModule {
     /// Create a new WASM module from bytes
     pub fn new(bytes: Vec<u8>, manifest: SkillManifest) -> Result<Self> {
-        // Validate WASM magic number
         if bytes.len() < 4 || &bytes[0..4] != b"\0asm" {
             anyhow::bail!("Invalid WASM file");
         }
 
-        // Validate manifest
-        manifest.validate()
+        manifest
+            .validate()
             .map_err(|e| anyhow::anyhow!("Invalid skill manifest: {}", e))?;
 
         Ok(Self { bytes, manifest })
@@ -120,7 +124,6 @@ impl WasmRuntime {
             sandbox_config,
             permission_set: PermissionSet::new(),
         }
-
     }
 
     /// Create a runtime with default configuration
@@ -130,10 +133,7 @@ impl WasmRuntime {
 
     /// Create a runtime with permissive configuration
     pub fn permissive() -> Self {
-        Self::new(
-            WasmRuntimeConfig::default(),
-            SandboxConfig::permissive(),
-        )
+        Self::new(WasmRuntimeConfig::default(), SandboxConfig::permissive())
     }
 
     /// Set permissions for the runtime
@@ -153,10 +153,8 @@ impl WasmRuntime {
         debug!("Executing WASM module: {}", module.manifest().id);
         debug!("Function: {}, Args: {:?}", function, args);
 
-        // Check execution permissions
         self.check_permissions(module.manifest())?;
 
-        // Execute the module
         let result = if self.config.enable_wasi {
             self.execute_wasi_module(module, function, args)?
         } else {
@@ -188,14 +186,42 @@ impl WasmRuntime {
         function: &str,
         args: Vec<WasmArgument>,
     ) -> Result<WasmExecutionResult> {
-        // Placeholder for WASI execution
-        // In a real implementation, this would use wasmtime or wasmer
         debug!("Executing WASI module: {}", module.manifest().id);
 
+        let engine = Engine::default();
+        let compiled_module = Module::from_binary(&engine, module.bytes())
+            .context("Failed to compile WASI module")?;
+
+        let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
+        preview1::add_to_linker_sync(&mut linker, |ctx| ctx)
+            .context("Failed to configure WASI linker")?;
+
+        let stdout_pipe = MemoryOutputPipe::new(1024 * 1024);
+        let stderr_pipe = MemoryOutputPipe::new(1024 * 1024);
+
+        let guest_args = self.build_guest_cli_args(module, function);
+        let guest_env = self.build_guest_env(module, &args);
+
+        let mut wasi = WasiCtxBuilder::new();
+        wasi.stdout(stdout_pipe.clone());
+        wasi.stderr(stderr_pipe.clone());
+        wasi.args(&guest_args).context("Failed to set WASI args")?;
+        wasi.envs(&guest_env).context("Failed to set WASI env")?;
+        wasi.allow_blocking_current_thread(true);
+
+        let wasi_ctx = wasi.build_p1();
+        let mut store = Store::new(&engine, wasi_ctx);
+        let instance = linker
+            .instantiate(&mut store, &compiled_module)
+            .context("Failed to instantiate WASI module")?;
+
+        let entry = self.resolve_wasi_entry(function, module.manifest());
+        let status = self.call_wasm_function(&mut store, &instance, &entry)?;
+
         Ok(WasmExecutionResult {
-            status: 0,
-            stdout: "WASI execution not yet implemented".to_string(),
-            stderr: String::new(),
+            status,
+            stdout: Self::pipe_to_string(&stdout_pipe),
+            stderr: Self::pipe_to_string(&stderr_pipe),
             execution_time_ms: 0,
             memory_used: None,
         })
@@ -206,37 +232,128 @@ impl WasmRuntime {
         &self,
         module: &WasmModule,
         function: &str,
-        args: Vec<WasmArgument>,
+        _args: Vec<WasmArgument>,
     ) -> Result<WasmExecutionResult> {
-        // Placeholder for raw WASM execution
-        // In a real implementation, this would use wasmtime or wasmer
         debug!("Executing raw WASM module: {}", module.manifest().id);
 
+        let engine = Engine::default();
+        let compiled_module = Module::from_binary(&engine, module.bytes())
+            .context("Failed to compile raw WASM module")?;
+        let mut store = Store::new(&engine, ());
+        let linker: Linker<()> = Linker::new(&engine);
+        let instance = linker
+            .instantiate(&mut store, &compiled_module)
+            .context("Failed to instantiate raw WASM module")?;
+
+        let entry = self.resolve_raw_entry(function, module.manifest());
+        let status = self.call_wasm_function(&mut store, &instance, &entry)?;
+
         Ok(WasmExecutionResult {
-            status: 0,
-            stdout: "Raw WASM execution not yet implemented".to_string(),
+            status,
+            stdout: String::new(),
             stderr: String::new(),
             execution_time_ms: 0,
             memory_used: None,
         })
     }
 
+    fn build_guest_cli_args(&self, module: &WasmModule, function: &str) -> Vec<String> {
+        vec![
+            module.manifest().id.clone(),
+            self.resolve_wasi_entry(function, module.manifest()),
+        ]
+    }
+
+    fn build_guest_env(&self, module: &WasmModule, args: &[WasmArgument]) -> Vec<(String, String)> {
+        vec![
+            ("CEOCLAW_SKILL_ID".to_string(), module.manifest().id.clone()),
+            (
+                "CEOCLAW_SKILL_VERSION".to_string(),
+                module.manifest().version.clone(),
+            ),
+            (
+                "CEOCLAW_ARGS".to_string(),
+                serde_json::to_string(&Self::normalize_args(args))
+                    .unwrap_or_else(|_| "{}".to_string()),
+            ),
+        ]
+    }
+
+    fn normalize_args(args: &[WasmArgument]) -> HashMap<String, WasmArgument> {
+        match args {
+            [WasmArgument::Object(map)] => map.clone(),
+            _ => {
+                let mut normalized = HashMap::new();
+                normalized.insert("args".to_string(), WasmArgument::Array(args.to_vec()));
+                for (index, argument) in args.iter().cloned().enumerate() {
+                    normalized.insert(format!("arg{}", index), argument);
+                }
+                normalized
+            }
+        }
+    }
+
+    fn resolve_wasi_entry(&self, function: &str, manifest: &SkillManifest) -> String {
+        if function.is_empty() || function == manifest.entry_point || function == "main" {
+            "_start".to_string()
+        } else {
+            function.to_string()
+        }
+    }
+
+    fn resolve_raw_entry(&self, function: &str, manifest: &SkillManifest) -> String {
+        if function.is_empty() {
+            manifest.entry_point.clone()
+        } else {
+            function.to_string()
+        }
+    }
+
+    fn call_wasm_function<T>(
+        &self,
+        store: &mut Store<T>,
+        instance: &wasmtime::Instance,
+        function_name: &str,
+    ) -> Result<i32> {
+        if let Ok(func) = instance.get_typed_func::<(), ()>(&mut *store, function_name) {
+            func.call(&mut *store, ())
+                .with_context(|| format!("Failed to call WASM function '{}'", function_name))?;
+            return Ok(0);
+        }
+
+        if let Ok(func) = instance.get_typed_func::<(), i32>(&mut *store, function_name) {
+            let status = func
+                .call(&mut *store, ())
+                .with_context(|| format!("Failed to call WASM function '{}'", function_name))?;
+            return Ok(status);
+        }
+
+        anyhow::bail!(
+            "WASM function '{}' must have signature () -> () or () -> i32",
+            function_name
+        )
+    }
+
+    fn pipe_to_string(pipe: &MemoryOutputPipe) -> String {
+        String::from_utf8_lossy(&pipe.contents()).to_string()
+    }
+
     /// Check if the module has the required permissions
     fn check_permissions(&self, manifest: &SkillManifest) -> Result<()> {
         for permission in &manifest.permissions {
-            let perm = Permission::new(
-                permission.permission_type.clone(),
-                permission.scope.clone(),
-            );
+            let perm =
+                Permission::new(permission.permission_type.clone(), permission.scope.clone());
 
-            // Check if permission is granted
             let is_granted = self.permission_set.get_granted().iter().any(|p| {
-                p.permission_type == perm.permission_type &&
-                (p.scope.is_none() || p.scope == perm.scope)
+                p.permission_type == perm.permission_type
+                    && (p.scope.is_none() || p.scope == perm.scope)
             });
 
             if permission.required && !is_granted {
-                anyhow::bail!("Required permission not granted: {}", permission.permission_type);
+                anyhow::bail!(
+                    "Required permission not granted: {}",
+                    permission.permission_type
+                );
             }
         }
 
@@ -260,8 +377,7 @@ mod tests {
 
     #[test]
     fn test_wasm_module_creation() {
-        // Create a minimal valid WASM module
-        let wasm_bytes = vec![0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00]; // WASM magic + version
+        let wasm_bytes = vec![0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00];
 
         let manifest = SkillManifest::new(
             "com.example.test".to_string(),
@@ -277,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_wasm_module_invalid_magic() {
-        let wasm_bytes = vec![0x00, 0x00, 0x00, 0x00]; // Invalid magic
+        let wasm_bytes = vec![0x00, 0x00, 0x00, 0x00];
 
         let manifest = SkillManifest::new(
             "com.example.test".to_string(),
@@ -301,5 +417,37 @@ mod tests {
     fn test_wasm_runtime_permissive() {
         let runtime = WasmRuntime::permissive();
         assert!(runtime.sandbox_config().enable_filesystem);
+    }
+
+    #[test]
+    fn test_normalize_args_preserves_named_object() {
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            WasmArgument::String("Claude".to_string()),
+        );
+
+        let normalized = WasmRuntime::normalize_args(&[WasmArgument::Object(map.clone())]);
+        assert_eq!(normalized.len(), 1);
+        assert!(
+            matches!(normalized.get("name"), Some(WasmArgument::String(value)) if value == "Claude")
+        );
+    }
+
+    #[test]
+    fn test_normalize_args_wraps_positional_values() {
+        let normalized = WasmRuntime::normalize_args(&[
+            WasmArgument::String("hello".to_string()),
+            WasmArgument::Boolean(true),
+        ]);
+
+        assert!(normalized.contains_key("args"));
+        assert!(
+            matches!(normalized.get("arg0"), Some(WasmArgument::String(value)) if value == "hello")
+        );
+        assert!(matches!(
+            normalized.get("arg1"),
+            Some(WasmArgument::Boolean(true))
+        ));
     }
 }

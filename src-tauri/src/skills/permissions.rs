@@ -67,8 +67,8 @@ impl PermissionSet {
 
     /// Check if a permission is granted
     pub fn is_granted(&self, permission: &Permission) -> bool {
-        self.granted.iter().any(|p| p.matches(permission)) &&
-            !self.denied.iter().any(|p| p.matches(permission))
+        self.granted.iter().any(|p| p.matches(permission))
+            && !self.denied.iter().any(|p| p.matches(permission))
     }
 
     /// Get all granted permissions
@@ -149,11 +149,12 @@ impl PermissionChecker {
         skill_id: &str,
         permission: &Permission,
     ) -> Result<(), PermissionError> {
-        let permission_set = self.permission_sets
-            .get(skill_id)
-            .ok_or_else(|| PermissionError::NotFound {
-                permission: format!("Skill '{}' not found", skill_id),
-            })?;
+        let permission_set =
+            self.permission_sets
+                .get(skill_id)
+                .ok_or_else(|| PermissionError::NotFound {
+                    permission: format!("Skill '{}' not found", skill_id),
+                })?;
 
         if permission_set.is_granted(permission) {
             Ok(())

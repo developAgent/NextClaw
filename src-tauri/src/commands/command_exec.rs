@@ -3,8 +3,8 @@ use crate::db::Database;
 use crate::exec::shell::{ExecutionResult, ShellExecutor};
 use crate::utils::error::Result;
 use tauri::State;
-use uuid::Uuid;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 /// Execute a system command
 ///
@@ -93,25 +93,45 @@ async fn save_execution(db: &Database, execution: &CommandExecution) -> Result<(
 async fn get_session_executions(db: &Database, session_id: Uuid) -> Result<Vec<CommandExecution>> {
     let conn = db.conn();
     let conn_guard = conn.lock().await;
-    let mut stmt = conn_guard.prepare(
-        "SELECT id, command, exit_code, stdout, stderr, duration_ms, created_at
+    let mut stmt = conn_guard
+        .prepare(
+            "SELECT id, command, exit_code, stdout, stderr, duration_ms, created_at
          FROM command_executions
          WHERE session_id = ?1
-         ORDER BY created_at DESC"
-    ).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-
-    let mut executions = Vec::new();
-    let mut rows = stmt.query(&[&session_id.to_string()])
+         ORDER BY created_at DESC",
+        )
         .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
 
-    while let Some(row) = rows.next().map_err(|e| crate::utils::error::AppError::Database(e.to_string()))? {
-        let id: String = row.get(0).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let command: String = row.get(1).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let exit_code: Option<String> = row.get(2).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let stdout: Option<String> = row.get(3).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let stderr: Option<String> = row.get(4).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let duration_ms: Option<String> = row.get(5).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
-        let created_at: String = row.get(6).map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+    let mut executions = Vec::new();
+    let mut rows = stmt
+        .query(&[&session_id.to_string()])
+        .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?
+    {
+        let id: String = row
+            .get(0)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let command: String = row
+            .get(1)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let exit_code: Option<String> = row
+            .get(2)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let stdout: Option<String> = row
+            .get(3)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let stderr: Option<String> = row
+            .get(4)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let duration_ms: Option<String> = row
+            .get(5)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
+        let created_at: String = row
+            .get(6)
+            .map_err(|e| crate::utils::error::AppError::Database(e.to_string()))?;
 
         executions.push(CommandExecution {
             id: Uuid::parse_str(&id).unwrap_or_default(),

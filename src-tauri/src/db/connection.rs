@@ -1,4 +1,4 @@
-use rusqlite::{Connection, params, Result as SqliteResult};
+use rusqlite::{params, Connection, Result as SqliteResult};
 use secrecy::{ExposeSecret, Secret, SecretString};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -61,7 +61,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create agents table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create agents table: {e}")))?;
 
         // --- Sessions Table ---
         conn.execute(
@@ -75,7 +76,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create sessions table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create sessions table: {e}")))?;
 
         // --- Messages Table ---
         conn.execute(
@@ -90,7 +92,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create messages table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create messages table: {e}")))?;
 
         // --- Channels Table ---
         conn.execute(
@@ -108,7 +111,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create channels table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create channels table: {e}")))?;
 
         // --- Channel Accounts Table ---
         conn.execute(
@@ -124,7 +128,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create channel_accounts table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create channel_accounts table: {e}")))?;
 
         // --- Cron Jobs Table ---
         conn.execute(
@@ -146,7 +151,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create cron_jobs table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create cron_jobs table: {e}")))?;
 
         // --- Cron Executions Table ---
         conn.execute(
@@ -162,7 +168,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create cron_executions table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create cron_executions table: {e}")))?;
 
         // --- Skills Table ---
         conn.execute(
@@ -175,13 +182,39 @@ impl Database {
                 author TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 config TEXT,
+                permissions_json TEXT,
                 path TEXT,
                 installed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create skills table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create skills table: {e}")))?;
+
+        let has_permissions_json = conn
+            .prepare("PRAGMA table_info(skills)")
+            .and_then(|mut stmt| {
+                let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+                let mut found = false;
+                for column in columns {
+                    if column? == "permissions_json" {
+                        found = true;
+                        break;
+                    }
+                }
+                Ok(found)
+            })
+            .map_err(|e| {
+                AppError::Database(format!("Failed to inspect skills table schema: {e}"))
+            })?;
+
+        if !has_permissions_json {
+            conn.execute("ALTER TABLE skills ADD COLUMN permissions_json TEXT", [])
+                .map_err(|e| {
+                    AppError::Database(format!("Failed to add skills.permissions_json column: {e}"))
+                })?;
+        }
 
         // --- Models Table ---
         conn.execute(
@@ -197,7 +230,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create models table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create models table: {e}")))?;
 
         // --- Settings Table ---
         conn.execute(
@@ -210,7 +244,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create settings table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create settings table: {e}")))?;
 
         // --- Secure Storage (API Keys) Table ---
         conn.execute(
@@ -225,7 +260,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create secure_storage table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create secure_storage table: {e}")))?;
 
         // --- Gateway Config Table ---
         conn.execute(
@@ -245,7 +281,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create gateway_config table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create gateway_config table: {e}")))?;
 
         // --- Skill Marketplace Table ---
         conn.execute(
@@ -257,13 +294,127 @@ impl Database {
                 description TEXT,
                 author TEXT,
                 icon TEXT,
+                available INTEGER NOT NULL DEFAULT 0,
                 installed INTEGER NOT NULL DEFAULT 0,
                 installed_at TEXT,
-                installed_path TEXT
+                installed_path TEXT,
+                skill_id TEXT
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create skill_marketplace table: {e}")))?;
+        )
+        .map_err(|e| {
+            AppError::Database(format!("Failed to create skill_marketplace table: {e}"))
+        })?;
+
+        let skill_marketplace_columns = conn
+            .prepare("PRAGMA table_info(skill_marketplace)")
+            .and_then(|mut stmt| {
+                let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+                columns.collect::<std::result::Result<Vec<_>, _>>()
+            })
+            .map_err(|e| {
+                AppError::Database(format!(
+                    "Failed to inspect skill_marketplace table schema: {e}"
+                ))
+            })?;
+
+        if !skill_marketplace_columns
+            .iter()
+            .any(|column| column == "available")
+        {
+            conn.execute(
+                "ALTER TABLE skill_marketplace ADD COLUMN available INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .map_err(|e| {
+                AppError::Database(format!(
+                    "Failed to add skill_marketplace.available column: {e}"
+                ))
+            })?;
+        }
+
+        if !skill_marketplace_columns
+            .iter()
+            .any(|column| column == "skill_id")
+        {
+            conn.execute("ALTER TABLE skill_marketplace ADD COLUMN skill_id TEXT", [])
+                .map_err(|e| {
+                    AppError::Database(format!(
+                        "Failed to add skill_marketplace.skill_id column: {e}"
+                    ))
+                })?;
+        }
+
+        // --- Plugins Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS plugins (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                author TEXT,
+                description TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                config TEXT,
+                installed_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create plugins table: {e}")))?;
+
+        // --- Recordings Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS recordings (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                events_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create recordings table: {e}")))?;
+
+        // --- Workflows Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS workflows (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                nodes_json TEXT NOT NULL,
+                edges_json TEXT NOT NULL,
+                variables_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create workflows table: {e}")))?;
+
+        // --- Hotkeys Table ---
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS hotkeys (
+                id TEXT PRIMARY KEY,
+                action TEXT NOT NULL,
+                key_combination TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create hotkeys table: {e}")))?;
 
         // --- Skill Config Table ---
         conn.execute(
@@ -278,7 +429,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create skill_config table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create skill_config table: {e}")))?;
 
         // --- Token Usage Table ---
         conn.execute(
@@ -295,7 +447,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create token_usage table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create token_usage table: {e}")))?;
 
         // --- App Logs Table ---
         conn.execute(
@@ -309,7 +462,8 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create app_logs table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create app_logs table: {e}")))?;
 
         // --- Workspaces Table ---
         conn.execute(
@@ -323,34 +477,40 @@ impl Database {
             )
             "#,
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create workspaces table: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create workspaces table: {e}")))?;
 
         // --- Indexes for better performance ---
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create messages index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create messages index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create sessions index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create sessions index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create cron_jobs index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create cron_jobs index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create skills index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create skills index: {e}")))?;
 
         // --- New indexes for ClawX functionality ---
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_gateway_config ON gateway_config(auto_start)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create gateway_config index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create gateway_config index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_skill_marketplace_installed ON skill_marketplace(installed)",
@@ -358,34 +518,81 @@ impl Database {
         ).map_err(|e| AppError::Database(format!("Failed to create skill_marketplace index: {e}")))?;
 
         conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_plugins_enabled ON plugins(enabled)",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create plugins enabled index: {e}")))?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_plugins_updated_at ON plugins(updated_at)",
+            [],
+        )
+        .map_err(|e| {
+            AppError::Database(format!("Failed to create plugins updated_at index: {e}"))
+        })?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_recordings_updated_at ON recordings(updated_at)",
+            [],
+        )
+        .map_err(|e| {
+            AppError::Database(format!("Failed to create recordings updated_at index: {e}"))
+        })?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workflows_updated_at ON workflows(updated_at)",
+            [],
+        )
+        .map_err(|e| {
+            AppError::Database(format!("Failed to create workflows updated_at index: {e}"))
+        })?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hotkeys_enabled ON hotkeys(enabled)",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create hotkeys enabled index: {e}")))?;
+
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_hotkeys_key_combination ON hotkeys(key_combination)",
+            [],
+        ).map_err(|e| AppError::Database(format!("Failed to create hotkeys key combination index: {e}")))?;
+
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_skill_config_enabled ON skill_config(enabled)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create skill_config index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create skill_config index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_token_usage_session ON token_usage(session_id)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_token_usage_agent ON token_usage(agent_id)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create token_usage index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_app_logs_timestamp ON app_logs(timestamp)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create app_logs index: {e}")))?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_workspaces_name ON workspaces(name)",
             [],
-        ).map_err(|e| AppError::Database(format!("Failed to create workspaces index: {e}")))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create workspaces index: {e}")))?;
 
         debug!("Database schema initialized successfully");
         Ok(())

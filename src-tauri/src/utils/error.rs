@@ -104,9 +104,18 @@ mod tests {
 
     #[test]
     fn test_error_categories() {
-        assert_eq!(AppError::Authentication("test".to_string()).category(), "authentication");
-        assert_eq!(AppError::RateLimit("test".to_string()).category(), "rate_limit");
-        assert_eq!(AppError::Security("test".to_string()).category(), "security");
+        assert_eq!(
+            AppError::Authentication("test".to_string()).category(),
+            "authentication"
+        );
+        assert_eq!(
+            AppError::RateLimit("test".to_string()).category(),
+            "rate_limit"
+        );
+        assert_eq!(
+            AppError::Security("test".to_string()).category(),
+            "security"
+        );
     }
 
     #[test]

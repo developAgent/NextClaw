@@ -4,9 +4,9 @@
 use anyhow::Result;
 use futures::Stream;
 use pin_project::pin_project;
+use serde::Deserialize;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use serde::Deserialize;
 
 /// Stream event parser for Server-Sent Events
 #[pin_project]

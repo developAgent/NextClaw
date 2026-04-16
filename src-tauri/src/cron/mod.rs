@@ -6,7 +6,7 @@ use crate::db::models::Session;
 use crate::utils::error::{AppError, Result};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -84,7 +84,12 @@ pub enum CronExecutionStatus {
 }
 
 impl CronJob {
-    pub fn new(name: impl Into<String>, agent_id: impl Into<String>, cron_expr: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        agent_id: impl Into<String>,
+        cron_expr: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         let now = Utc::now().to_rfc3339();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -225,7 +230,12 @@ impl CronScheduler {
 
     /// Create a new cron job
     pub async fn create_job(&self, request: CreateCronJobRequest) -> Result<CronJob> {
-        let mut job = CronJob::new(&request.name, &request.agent_id, &request.cron_expression, &request.message);
+        let mut job = CronJob::new(
+            &request.name,
+            &request.agent_id,
+            &request.cron_expression,
+            &request.message,
+        );
         job.description = normalize_optional_string(request.description);
         job.channel_account_id = normalize_optional_string(request.channel_account_id);
         job.target_config = normalize_optional_string(request.target_config);
@@ -300,7 +310,9 @@ impl CronScheduler {
 
     /// Update a job
     pub async fn update_job(&self, request: UpdateCronJobRequest) -> Result<CronJob> {
-        let mut job = self.get_job(&request.id).await?
+        let mut job = self
+            .get_job(&request.id)
+            .await?
             .ok_or_else(|| AppError::Validation(format!("Job not found: {}", request.id)))?;
 
         // Update fields
@@ -371,7 +383,8 @@ impl CronScheduler {
                 &job.updated_at,
                 &job.id,
             ],
-        ).map_err(|e| AppError::Database(format!("Failed to update job: {}", e)))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to update job: {}", e)))?;
 
         // Update in-memory cache
         let mut jobs = self.jobs.write().await;
@@ -385,7 +398,8 @@ impl CronScheduler {
     pub async fn delete_job(&self, id: &str) -> Result<()> {
         let db = self.db.lock().await;
 
-        let count = db.execute("DELETE FROM cron_jobs WHERE id = ?1", params![id])
+        let count = db
+            .execute("DELETE FROM cron_jobs WHERE id = ?1", params![id])
             .map_err(|e| AppError::Database(format!("Failed to delete job: {}", e)))?;
 
         if count == 0 {
@@ -431,16 +445,16 @@ impl CronScheduler {
                     .iter()
                     .filter(|(_, job)| {
                         job.enabled
-                        && if let Some(next_run) = &job.next_run {
-                            // Parse next_run and check if it's time
-                            if let Ok(dt) = DateTime::parse_from_rfc3339(next_run) {
-                                dt <= now
+                            && if let Some(next_run) = &job.next_run {
+                                // Parse next_run and check if it's time
+                                if let Ok(dt) = DateTime::parse_from_rfc3339(next_run) {
+                                    dt <= now
+                                } else {
+                                    false
+                                }
                             } else {
                                 false
                             }
-                        } else {
-                            false
-                        }
                     })
                     .map(|(id, job)| (id.clone(), job.clone()))
                     .collect();
@@ -511,14 +525,23 @@ impl CronScheduler {
                                 Err(e) => ("failed", None::<String>, Some(e.to_string())),
                             };
 
-                            db.lock().await.execute(
-                                r#"
+                            db.lock()
+                                .await
+                                .execute(
+                                    r#"
                                 UPDATE cron_executions
                                 SET status = ?1, completed_at = ?2, output = ?3, error = ?4
                                 WHERE id = ?5
                                 "#,
-                                params![status, &Utc::now().to_rfc3339(), output, error, &execution.id],
-                            ).ok();
+                                    params![
+                                        status,
+                                        &Utc::now().to_rfc3339(),
+                                        output,
+                                        error,
+                                        &execution.id
+                                    ],
+                                )
+                                .ok();
 
                             info!("Cron job {} completed with status: {}", job_id, status);
                         });
@@ -541,13 +564,19 @@ impl CronScheduler {
     pub async fn execute_job(&self, job: &CronJob) -> Result<String> {
         debug!("Executing cron job: {}", job.name);
 
-        let agent = self.get_agent(&job.agent_id).await?
+        let agent = self
+            .get_agent(&job.agent_id)
+            .await?
             .ok_or_else(|| AppError::Validation(format!("Agent not found: {}", job.agent_id)))?;
 
         let session = self.create_cron_session(job, &agent).await?;
         let session_id = session.id;
 
-        if let Some(system_prompt) = agent.system_prompt.as_deref().filter(|prompt| !prompt.trim().is_empty()) {
+        if let Some(system_prompt) = agent
+            .system_prompt
+            .as_deref()
+            .filter(|prompt| !prompt.trim().is_empty())
+        {
             self.store_message(
                 session_id,
                 &Message::new(session_id, MessageRole::System, system_prompt.to_string()),
@@ -564,24 +593,38 @@ impl CronScheduler {
         self.store_message(session_id, &assistant_message).await?;
 
         let delivered_response = self.deliver_response(job, &response).await?;
-        self.update_job_after_execution(job, &delivered_response).await?;
+        self.update_job_after_execution(job, &delivered_response)
+            .await?;
 
         Ok(delivered_response)
     }
 
-    async fn generate_response(&self, job: &CronJob, agent: &crate::agents::Agent, session_id: Uuid) -> Result<String> {
-        match agent.provider_id.as_deref().map(str::trim).filter(|provider| !provider.is_empty()) {
+    async fn generate_response(
+        &self,
+        job: &CronJob,
+        agent: &crate::agents::Agent,
+        session_id: Uuid,
+    ) -> Result<String> {
+        match agent
+            .provider_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|provider| !provider.is_empty())
+        {
             Some("anthropic") | Some("claude") | None => {
                 let api_key = self.get_api_key()?;
                 let secret_key = secrecy::SecretString::new(api_key);
-                let client = ClaudeClient::new(secret_key)
-                    .map(|client| {
-                        if let Some(model_id) = agent.model_id.clone().filter(|model| !model.trim().is_empty()) {
-                            client.with_model(model_id)
-                        } else {
-                            client
-                        }
-                    })?;
+                let client = ClaudeClient::new(secret_key).map(|client| {
+                    if let Some(model_id) = agent
+                        .model_id
+                        .clone()
+                        .filter(|model| !model.trim().is_empty())
+                    {
+                        client.with_model(model_id)
+                    } else {
+                        client
+                    }
+                })?;
 
                 client.send_message(&job.message, session_id).await
             }
@@ -593,11 +636,18 @@ impl CronScheduler {
     }
 
     async fn deliver_response(&self, job: &CronJob, response: &str) -> Result<String> {
-        if let Some(account_id) = job.channel_account_id.as_deref().filter(|value| !value.trim().is_empty()) {
-            let account = self.get_channel_account(account_id).await?
-                .ok_or_else(|| AppError::Validation(format!("Channel account not found: {}", account_id)))?;
+        if let Some(account_id) = job
+            .channel_account_id
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            let account = self.get_channel_account(account_id).await?.ok_or_else(|| {
+                AppError::Validation(format!("Channel account not found: {}", account_id))
+            })?;
             let target_config = self.parse_target_config(job.target_config.as_deref())?;
-            let delivery_summary = self.dispatch_to_channel_account(job, &account, response, target_config.as_ref()).await?;
+            let delivery_summary = self
+                .dispatch_to_channel_account(job, &account, response, target_config.as_ref())
+                .await?;
             return Ok(format!("{}\n\n{}", response, delivery_summary));
         }
 
@@ -630,7 +680,10 @@ impl CronScheduler {
         Ok(agent)
     }
 
-    async fn get_channel_account(&self, account_id: &str) -> Result<Option<crate::channel_accounts::ChannelAccount>> {
+    async fn get_channel_account(
+        &self,
+        account_id: &str,
+    ) -> Result<Option<crate::channel_accounts::ChannelAccount>> {
         let db = self.db.lock().await;
         let mut stmt = db.prepare(
             "SELECT id, channel_id, name, credentials, is_default, created_at, updated_at FROM channel_accounts WHERE id = ?1"
@@ -653,7 +706,10 @@ impl CronScheduler {
         Ok(account)
     }
 
-    async fn get_channel(&self, channel_id: &str) -> Result<Option<crate::channels::types::Channel>> {
+    async fn get_channel(
+        &self,
+        channel_id: &str,
+    ) -> Result<Option<crate::channels::types::Channel>> {
         let db = self.db.lock().await;
         let mut stmt = db.prepare(
             "SELECT id, provider_type, name, config, enabled, priority, health_status, created_at, updated_at FROM channels WHERE id = ?1"
@@ -662,12 +718,13 @@ impl CronScheduler {
         let channel = stmt
             .query_row(params![channel_id], |row| {
                 let config_text: String = row.get(3)?;
-                let config = serde_json::from_str(&config_text)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                let config = serde_json::from_str(&config_text).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
                         3,
                         rusqlite::types::Type::Text,
                         Box::new(e),
-                    ))?;
+                    )
+                })?;
 
                 let health_status = match row.get::<_, String>(6)?.as_str() {
                     "healthy" => crate::channels::types::ChannelHealth::Healthy,
@@ -710,10 +767,19 @@ impl CronScheduler {
         response: &str,
         target_config: Option<&serde_json::Value>,
     ) -> Result<String> {
-        let credentials: serde_json::Value = serde_json::from_str(&account.credentials)
-            .map_err(|e| AppError::Validation(format!("Invalid channel account credentials JSON: {}", e)))?;
-        let channel = self.get_channel(&account.channel_id).await?
-            .ok_or_else(|| AppError::Validation(format!("Channel not found for account: {}", account.channel_id)))?;
+        let credentials: serde_json::Value =
+            serde_json::from_str(&account.credentials).map_err(|e| {
+                AppError::Validation(format!("Invalid channel account credentials JSON: {}", e))
+            })?;
+        let channel = self
+            .get_channel(&account.channel_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::Validation(format!(
+                    "Channel not found for account: {}",
+                    account.channel_id
+                ))
+            })?;
 
         let provider = target_config
             .and_then(|config| config.get("provider"))
@@ -749,16 +815,19 @@ impl CronScheduler {
 
         match provider {
             "webhook" | "custom" => {
-                let webhook_url = self.get_string_config(
-                    target_config,
-                    Some(&credentials),
-                    Some(&channel.config),
-                    &["webhook_url", "url", "endpoint", "base_url"],
-                )
-                .ok_or_else(|| AppError::Validation(format!(
-                    "Channel account {} is missing a webhook endpoint for cron delivery",
-                    account.id
-                )))?;
+                let webhook_url = self
+                    .get_string_config(
+                        target_config,
+                        Some(&credentials),
+                        Some(&channel.config),
+                        &["webhook_url", "url", "endpoint", "base_url"],
+                    )
+                    .ok_or_else(|| {
+                        AppError::Validation(format!(
+                            "Channel account {} is missing a webhook endpoint for cron delivery",
+                            account.id
+                        ))
+                    })?;
 
                 let content_type = self
                     .get_string_config(
@@ -783,11 +852,24 @@ impl CronScheduler {
                 headers.insert(
                     CONTENT_TYPE,
                     HeaderValue::from_str(&content_type).map_err(|e| {
-                        AppError::Validation(format!("Invalid content type header for cron delivery: {}", e))
+                        AppError::Validation(format!(
+                            "Invalid content type header for cron delivery: {}",
+                            e
+                        ))
                     })?,
                 );
-                self.apply_auth_headers(&mut headers, target_config, Some(&credentials), Some(&channel.config))?;
-                self.apply_custom_headers(&mut headers, target_config, Some(&credentials), Some(&channel.config))?;
+                self.apply_auth_headers(
+                    &mut headers,
+                    target_config,
+                    Some(&credentials),
+                    Some(&channel.config),
+                )?;
+                self.apply_custom_headers(
+                    &mut headers,
+                    target_config,
+                    Some(&credentials),
+                    Some(&channel.config),
+                )?;
 
                 let client = reqwest::Client::new();
                 let request = match method.as_str() {
@@ -807,37 +889,38 @@ impl CronScheduler {
                     .json(&payload)
                     .send()
                     .await
-                    .map_err(|e| AppError::Execution(format!("Failed to send cron webhook delivery: {}", e)))?;
+                    .map_err(|e| {
+                        AppError::Execution(format!("Failed to send cron webhook delivery: {}", e))
+                    })?;
 
                 if !result.status().is_success() {
                     let status = result.status();
                     let body = result.text().await.unwrap_or_else(|_| String::new());
                     return Err(AppError::Execution(format!(
                         "Cron webhook delivery failed: {} {}",
-                        status,
-                        body
+                        status, body
                     )));
                 }
 
                 Ok(format!(
                     "Delivered to {} channel '{}' via {} {}",
-                    provider,
-                    account.name,
-                    method,
-                    webhook_url
+                    provider, account.name, method, webhook_url
                 ))
             }
             "slack" => {
-                let webhook_url = self.get_string_config(
-                    target_config,
-                    Some(&credentials),
-                    Some(&channel.config),
-                    &["webhook_url", "slack_webhook_url"],
-                )
-                .ok_or_else(|| AppError::Validation(format!(
-                    "Slack channel account {} is missing webhook_url",
-                    account.id
-                )))?;
+                let webhook_url = self
+                    .get_string_config(
+                        target_config,
+                        Some(&credentials),
+                        Some(&channel.config),
+                        &["webhook_url", "slack_webhook_url"],
+                    )
+                    .ok_or_else(|| {
+                        AppError::Validation(format!(
+                            "Slack channel account {} is missing webhook_url",
+                            account.id
+                        ))
+                    })?;
 
                 let text = format!("*{}*\n{}", job.name, response);
                 let slack_payload = serde_json::json!({
@@ -850,15 +933,16 @@ impl CronScheduler {
                     .json(&slack_payload)
                     .send()
                     .await
-                    .map_err(|e| AppError::Execution(format!("Failed to send Slack cron delivery: {}", e)))?;
+                    .map_err(|e| {
+                        AppError::Execution(format!("Failed to send Slack cron delivery: {}", e))
+                    })?;
 
                 if !result.status().is_success() {
                     let status = result.status();
                     let body = result.text().await.unwrap_or_else(|_| String::new());
                     return Err(AppError::Execution(format!(
                         "Slack cron delivery failed: {} {}",
-                        status,
-                        body
+                        status, body
                     )));
                 }
 
@@ -904,7 +988,8 @@ impl CronScheduler {
             .into_iter()
             .flatten()
             .find_map(|value| {
-                keys.iter().find_map(|key| value.get(*key).and_then(serde_json::Value::as_object))
+                keys.iter()
+                    .find_map(|key| value.get(*key).and_then(serde_json::Value::as_object))
             })
     }
 
@@ -915,16 +1000,34 @@ impl CronScheduler {
         credentials: Option<&serde_json::Value>,
         channel_config: Option<&serde_json::Value>,
     ) -> Result<()> {
-        if let Some(token) = self.get_string_config(target_config, credentials, channel_config, &["bearer_token", "token", "api_token"]) {
-            let auth_value = HeaderValue::from_str(&format!("Bearer {}", token))
-                .map_err(|e| AppError::Validation(format!("Invalid bearer token header for cron delivery: {}", e)))?;
+        if let Some(token) = self.get_string_config(
+            target_config,
+            credentials,
+            channel_config,
+            &["bearer_token", "token", "api_token"],
+        ) {
+            let auth_value = HeaderValue::from_str(&format!("Bearer {}", token)).map_err(|e| {
+                AppError::Validation(format!(
+                    "Invalid bearer token header for cron delivery: {}",
+                    e
+                ))
+            })?;
             headers.insert(AUTHORIZATION, auth_value);
             return Ok(());
         }
 
-        if let Some(token) = self.get_string_config(target_config, credentials, channel_config, &["authorization"]) {
-            let auth_value = HeaderValue::from_str(&token)
-                .map_err(|e| AppError::Validation(format!("Invalid authorization header for cron delivery: {}", e)))?;
+        if let Some(token) = self.get_string_config(
+            target_config,
+            credentials,
+            channel_config,
+            &["authorization"],
+        ) {
+            let auth_value = HeaderValue::from_str(&token).map_err(|e| {
+                AppError::Validation(format!(
+                    "Invalid authorization header for cron delivery: {}",
+                    e
+                ))
+            })?;
             headers.insert(AUTHORIZATION, auth_value);
         }
 
@@ -938,15 +1041,28 @@ impl CronScheduler {
         credentials: Option<&serde_json::Value>,
         channel_config: Option<&serde_json::Value>,
     ) -> Result<()> {
-        if let Some(custom_headers) = self.get_object_config(target_config, credentials, channel_config, &["headers"]) {
+        if let Some(custom_headers) =
+            self.get_object_config(target_config, credentials, channel_config, &["headers"])
+        {
             for (key, value) in custom_headers {
                 let header_value = value.as_str().ok_or_else(|| {
-                    AppError::Validation(format!("Custom header '{}' for cron delivery must be a string", key))
+                    AppError::Validation(format!(
+                        "Custom header '{}' for cron delivery must be a string",
+                        key
+                    ))
                 })?;
-                let header_name = HeaderName::from_str(key)
-                    .map_err(|e| AppError::Validation(format!("Invalid cron delivery header name '{}': {}", key, e)))?;
-                let header_value = HeaderValue::from_str(header_value)
-                    .map_err(|e| AppError::Validation(format!("Invalid cron delivery header '{}' value: {}", key, e)))?;
+                let header_name = HeaderName::from_str(key).map_err(|e| {
+                    AppError::Validation(format!(
+                        "Invalid cron delivery header name '{}': {}",
+                        key, e
+                    ))
+                })?;
+                let header_value = HeaderValue::from_str(header_value).map_err(|e| {
+                    AppError::Validation(format!(
+                        "Invalid cron delivery header '{}' value: {}",
+                        key, e
+                    ))
+                })?;
                 headers.insert(header_name, header_value);
             }
         }
@@ -954,7 +1070,11 @@ impl CronScheduler {
         Ok(())
     }
 
-    async fn create_cron_session(&self, job: &CronJob, agent: &crate::agents::Agent) -> Result<Session> {
+    async fn create_cron_session(
+        &self,
+        job: &CronJob,
+        agent: &crate::agents::Agent,
+    ) -> Result<Session> {
         let title = format!("[Cron] {} - {}", job.name, agent.name);
         let session = Session::new(title, Some(agent.id.clone()));
         let db = self.db.lock().await;
@@ -986,7 +1106,8 @@ impl CronScheduler {
                 &message.role.to_string(),
                 &message.content,
             ],
-        ).map_err(|e| AppError::Database(format!("Failed to store cron message: {}", e)))?;
+        )
+        .map_err(|e| AppError::Database(format!("Failed to store cron message: {}", e)))?;
 
         Ok(())
     }
@@ -1007,7 +1128,10 @@ impl CronScheduler {
                 WHERE id = ?4
                 "#,
                 params![&now.to_rfc3339(), &next_run, &now.to_rfc3339(), &job.id],
-            ).map_err(|e| AppError::Database(format!("Failed to update cron job after execution: {}", e)))?;
+            )
+            .map_err(|e| {
+                AppError::Database(format!("Failed to update cron job after execution: {}", e))
+            })?;
         }
 
         let mut jobs = self.jobs.write().await;
@@ -1017,22 +1141,35 @@ impl CronScheduler {
             job_mut.updated_at = now.to_rfc3339();
         }
 
-        debug!("Cron job {} produced {} chars of output", job.id, output.len());
+        debug!(
+            "Cron job {} produced {} chars of output",
+            job.id,
+            output.len()
+        );
         Ok(())
     }
 
     /// Get execution history for a job
-    pub async fn get_executions(&self, job_id: &str, limit: Option<u32>) -> Result<Vec<CronExecution>> {
+    pub async fn get_executions(
+        &self,
+        job_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<CronExecution>> {
         let db = self.db.lock().await;
-        let limit_clause = limit.map(|l| format!("LIMIT {}", l)).unwrap_or_else(|| String::new());
+        let limit_clause = limit
+            .map(|l| format!("LIMIT {}", l))
+            .unwrap_or_else(|| String::new());
 
-        let mut stmt = db.prepare(
-            format!(
-                "SELECT id, job_id, status, started_at, completed_at, output, error
+        let mut stmt = db
+            .prepare(
+                format!(
+                    "SELECT id, job_id, status, started_at, completed_at, output, error
                  FROM cron_executions WHERE job_id = ?1 ORDER BY started_at DESC {}",
-                limit_clause
-            ).as_str()
-        ).map_err(|e| AppError::Database(format!("Failed to query executions: {}", e)))?;
+                    limit_clause
+                )
+                .as_str(),
+            )
+            .map_err(|e| AppError::Database(format!("Failed to query executions: {}", e)))?;
 
         let executions = stmt
             .query_map(params![job_id], |row| {
@@ -1058,7 +1195,11 @@ impl CronScheduler {
             .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()
             .map_err(|e| AppError::Database(format!("Failed to collect executions: {}", e)))?;
 
-        debug!("Retrieved {} executions for job {}", executions.len(), job_id);
+        debug!(
+            "Retrieved {} executions for job {}",
+            executions.len(),
+            job_id
+        );
         Ok(executions)
     }
 }
@@ -1110,14 +1251,21 @@ mod tests {
 
     #[test]
     fn test_get_string_config_uses_priority_order() {
-        let db = Arc::new(Mutex::new(Connection::open_in_memory().expect("in-memory db should open")));
+        let db = Arc::new(Mutex::new(
+            Connection::open_in_memory().expect("in-memory db should open"),
+        ));
         let scheduler = CronScheduler::new(db);
         let target = serde_json::json!({ "webhook_url": "https://target.example" });
         let credentials = serde_json::json!({ "webhook_url": "https://credentials.example" });
         let channel = serde_json::json!({ "webhook_url": "https://channel.example" });
 
         assert_eq!(
-            scheduler.get_string_config(Some(&target), Some(&credentials), Some(&channel), &["webhook_url"]),
+            scheduler.get_string_config(
+                Some(&target),
+                Some(&credentials),
+                Some(&channel),
+                &["webhook_url"]
+            ),
             Some("https://target.example".to_string())
         );
         assert_eq!(

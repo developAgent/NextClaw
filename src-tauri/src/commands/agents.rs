@@ -3,8 +3,8 @@
 
 use crate::agents::{AgentManager, CreateAgentRequest, UpdateAgentRequest};
 use crate::utils::error::Result;
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 
 /// Create a new agent
 #[tauri::command]
@@ -43,10 +43,7 @@ pub async fn update_agent(
 
 /// Delete an agent
 #[tauri::command]
-pub async fn delete_agent(
-    id: String,
-    manager: State<'_, Arc<AgentManager>>,
-) -> Result<()> {
+pub async fn delete_agent(id: String, manager: State<'_, Arc<AgentManager>>) -> Result<()> {
     manager.delete_agent(&id).await
 }
 
@@ -57,8 +54,9 @@ pub async fn clone_agent(
     new_name: Option<String>,
     manager: State<'_, Arc<AgentManager>>,
 ) -> Result<crate::agents::Agent> {
-    let original = manager.get_agent(&id).await?
-        .ok_or_else(|| crate::utils::error::AppError::Validation(format!("Agent not found: {}", id)))?;
+    let original = manager.get_agent(&id).await?.ok_or_else(|| {
+        crate::utils::error::AppError::Validation(format!("Agent not found: {}", id))
+    })?;
 
     let request = CreateAgentRequest {
         name: new_name.unwrap_or_else(|| format!("{} (Copy)", original.name)),

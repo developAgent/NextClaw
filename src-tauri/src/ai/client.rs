@@ -67,12 +67,10 @@ impl ClaudeClient {
 
         let request_body = RequestBody {
             model: self.model.clone(),
-            messages: vec![
-                Message {
-                    role: "user".to_string(),
-                    content: message.to_string(),
-                }
-            ],
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: message.to_string(),
+            }],
             max_tokens: 4096,
         };
 
@@ -88,8 +86,14 @@ impl ClaudeClient {
 
         let status = response.status();
         if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(AppError::Ai(format!("API error: {} - {}", status, error_text)));
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(AppError::Ai(format!(
+                "API error: {} - {}",
+                status, error_text
+            )));
         }
 
         let response_body: Response = response

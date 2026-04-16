@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
 use std::time::Duration;
+use tracing::{debug, info};
 
 /// Ollama client configuration
 #[derive(Debug, Clone)]
@@ -47,7 +47,8 @@ impl OllamaClient {
     /// Check if Ollama is running and accessible
     pub async fn check_connection(&self) -> Result<bool> {
         let url = format!("{}/api/tags", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -59,7 +60,8 @@ impl OllamaClient {
     /// List all available models
     pub async fn list_models(&self) -> Result<Vec<crate::ollama::models::OllamaModel>> {
         let url = format!("{}/api/tags", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -78,9 +80,13 @@ impl OllamaClient {
     }
 
     /// Get information about a specific model
-    pub async fn show_model_info(&self, model_name: &str) -> Result<crate::ollama::models::ModelInfo> {
+    pub async fn show_model_info(
+        &self,
+        model_name: &str,
+    ) -> Result<crate::ollama::models::ModelInfo> {
         let url = format!("{}/api/show", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({ "name": model_name }))
             .send()
@@ -100,9 +106,13 @@ impl OllamaClient {
     }
 
     /// Pull a model from Ollama registry
-    pub async fn pull_model(&self, model_name: &str) -> Result<crate::ollama::models::PullProgress> {
+    pub async fn pull_model(
+        &self,
+        model_name: &str,
+    ) -> Result<crate::ollama::models::PullProgress> {
         let url = format!("{}/api/pull", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({ "name": model_name, "stream": false }))
             .send()
@@ -125,7 +135,8 @@ impl OllamaClient {
     /// Delete a model
     pub async fn delete_model(&self, model_name: &str) -> Result<()> {
         let url = format!("{}/api/delete", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .delete(&url)
             .json(&serde_json::json!({ "name": model_name }))
             .send()
@@ -143,7 +154,8 @@ impl OllamaClient {
     /// Create a model from a modelfile
     pub async fn create_model(&self, name: &str, modelfile: &str) -> Result<()> {
         let url = format!("{}/api/create", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "name": name,
@@ -163,9 +175,13 @@ impl OllamaClient {
     }
 
     /// Send a chat completion request
-    pub async fn chat(&self, request: crate::ollama::models::OllamaChatRequest) -> Result<crate::ollama::models::OllamaChatResponse> {
+    pub async fn chat(
+        &self,
+        request: crate::ollama::models::OllamaChatRequest,
+    ) -> Result<crate::ollama::models::OllamaChatResponse> {
         let url = format!("{}/api/chat", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "model": request.model,
@@ -207,7 +223,8 @@ impl OllamaClient {
             request_obj["options"] = serde_json::to_value(options)?;
         }
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request_obj)
             .send()
@@ -218,7 +235,8 @@ impl OllamaClient {
             anyhow::bail!("Streaming chat request failed: {}", response.status());
         }
 
-        let stream = response.bytes_stream()
+        let stream = response
+            .bytes_stream()
             .map(move |bytes_result| -> Result<Vec<String>> {
                 let bytes = bytes_result.context("Failed to read stream")?;
                 let text = String::from_utf8_lossy(&bytes);
@@ -229,15 +247,17 @@ impl OllamaClient {
                     .collect();
                 Ok(lines)
             })
-            .map_ok(move |lines| futures::stream::iter(lines).map(move |line| -> Result<String> {
-                let chunk: serde_json::Value = serde_json::from_str(&line)
-                    .context("Failed to parse JSON chunk")?;
-                let content = chunk["message"]["content"]
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .unwrap_or_default();
-                Ok(content)
-            }))
+            .map_ok(move |lines| {
+                futures::stream::iter(lines).map(move |line| -> Result<String> {
+                    let chunk: serde_json::Value =
+                        serde_json::from_str(&line).context("Failed to parse JSON chunk")?;
+                    let content = chunk["message"]["content"]
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    Ok(content)
+                })
+            })
             .try_flatten();
 
         Ok(stream)
@@ -246,7 +266,8 @@ impl OllamaClient {
     /// Generate completion from a prompt
     pub async fn generate(&self, model: &str, prompt: &str) -> Result<String> {
         let url = format!("{}/api/generate", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "model": model,
@@ -276,7 +297,8 @@ impl OllamaClient {
     /// Embed text into vectors
     pub async fn embed(&self, model: &str, input: &str) -> Result<Vec<f32>> {
         let url = format!("{}/api/embed", self.config.base_url);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "model": model,
@@ -301,9 +323,11 @@ impl OllamaClient {
 
         let vector = embedding
             .iter()
-            .map(|v| v.as_f64()
-                .ok_or_else(|| anyhow::anyhow!("Not a float"))
-                .map(|f| f as f32))
+            .map(|v| {
+                v.as_f64()
+                    .ok_or_else(|| anyhow::anyhow!("Not a float"))
+                    .map(|f| f as f32)
+            })
             .collect::<Result<Vec<_>>>()?;
 
         Ok(vector)

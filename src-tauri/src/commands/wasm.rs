@@ -47,8 +47,8 @@ pub async fn wasm_register_skill(
     permissions_json: String,
     host: State<'_, Arc<WasmHost>>,
 ) -> Result<()> {
-    use base64::Engine;
     use base64::prelude::BASE64_STANDARD;
+    use base64::Engine;
 
     // Decode WASM from base64
     let wasm_bytes = BASE64_STANDARD
@@ -56,20 +56,27 @@ pub async fn wasm_register_skill(
         .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid base64: {}", e)))?;
 
     // Parse manifest
-    let manifest: SkillManifest = serde_json::from_str(&manifest_json)
-        .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid manifest: {}", e)))?;
+    let manifest: SkillManifest = serde_json::from_str(&manifest_json).map_err(|e| {
+        crate::utils::error::AppError::Validation(format!("Invalid manifest: {}", e))
+    })?;
 
     // Parse permissions
-    let permissions: PermissionSet = serde_json::from_str(&permissions_json)
-        .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid permissions: {}", e)))?;
+    let permissions: PermissionSet = serde_json::from_str(&permissions_json).map_err(|e| {
+        crate::utils::error::AppError::Validation(format!("Invalid permissions: {}", e))
+    })?;
 
     // Create module
-    let module = crate::skills::runtime::WasmModule::new(wasm_bytes, manifest.clone())
-        .map_err(|e| crate::utils::error::AppError::Internal(format!("Failed to create module: {}", e)))?;
+    let module =
+        crate::skills::runtime::WasmModule::new(wasm_bytes, manifest.clone()).map_err(|e| {
+            crate::utils::error::AppError::Internal(format!("Failed to create module: {}", e))
+        })?;
 
     // Register skill
-    host.register_skill(module, permissions).await
-        .map_err(|e| crate::utils::error::AppError::Internal(format!("Failed to register skill: {}", e)))?;
+    host.register_skill(module, permissions)
+        .await
+        .map_err(|e| {
+            crate::utils::error::AppError::Internal(format!("Failed to register skill: {}", e))
+        })?;
 
     info!("Registered WASM skill: {}", manifest.name);
     Ok(())
@@ -77,10 +84,7 @@ pub async fn wasm_register_skill(
 
 /// Unregister a WASM skill
 #[tauri::command]
-pub async fn wasm_unregister_skill(
-    skill_id: String,
-    host: State<'_, Arc<WasmHost>>,
-) -> Result<()> {
+pub async fn wasm_unregister_skill(skill_id: String, host: State<'_, Arc<WasmHost>>) -> Result<()> {
     host.unregister_skill(&skill_id).await
 }
 

@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Bot,
   CalendarClock,
+  Clapperboard,
   Cog,
   Cpu,
   FolderKanban,
+  GitBranch,
   HardDriveDownload,
+  Keyboard,
   Link2,
   Logs,
   MessageSquare,
@@ -15,11 +18,14 @@ import Chat from '@/pages/Chat';
 import Agents from '@/pages/Agents';
 import Channels from '@/pages/Channels';
 import Cron from '@/pages/Cron';
+import Recorder from '@/pages/Recorder';
 import Skills from '@/pages/Skills';
+import Hotkeys from '@/pages/Hotkeys';
 import Models from '@/pages/Models';
 import Settings from '@/pages/Settings';
 import Installer from '@/pages/Installer';
 import LogsPage from '@/pages/Logs';
+import Workflows from '@/pages/Workflows';
 import Workspaces from '@/pages/Workspaces';
 import SetupWizard from '@/pages/Setup/SetupWizard';
 
@@ -28,7 +34,10 @@ type AppSection =
   | 'agents'
   | 'channels'
   | 'cron'
+  | 'recorder'
   | 'skills'
+  | 'hotkeys'
+  | 'workflows'
   | 'models'
   | 'workspaces'
   | 'logs'
@@ -70,10 +79,28 @@ const navItems: NavItem[] = [
     icon: CalendarClock,
   },
   {
+    id: 'recorder',
+    label: 'Recorder',
+    description: 'Capture and replay automation flows',
+    icon: Clapperboard,
+  },
+  {
     id: 'skills',
     label: 'Skills',
     description: 'Installed skills and marketplace',
     icon: Sparkles,
+  },
+  {
+    id: 'hotkeys',
+    label: 'Hotkeys',
+    description: 'Manage global keyboard shortcuts',
+    icon: Keyboard,
+  },
+  {
+    id: 'workflows',
+    label: 'Workflows',
+    description: 'Design persisted automation graphs',
+    icon: GitBranch,
   },
   {
     id: 'models',
@@ -149,8 +176,14 @@ export default function App() {
         return <Channels />;
       case 'cron':
         return <Cron />;
+      case 'recorder':
+        return <Recorder />;
       case 'skills':
         return <Skills />;
+      case 'hotkeys':
+        return <Hotkeys />;
+      case 'workflows':
+        return <Workflows />;
       case 'models':
         return <Models />;
       case 'workspaces':

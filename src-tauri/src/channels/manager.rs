@@ -45,7 +45,8 @@ impl ChannelManager {
                 };
 
                 let config_text: String = row.get(3)?;
-                let config = serde_json::from_str(&config_text).unwrap_or_else(|_| serde_json::json!({}));
+                let config =
+                    serde_json::from_str(&config_text).unwrap_or_else(|_| serde_json::json!({}));
 
                 Ok(Channel {
                     id: row.get(0)?,
@@ -116,8 +117,9 @@ impl ChannelManager {
         }
         channel.updated_at = now;
 
-        let config_json = serde_json::to_string(&channel.config)
-            .map_err(|e| AppError::Validation(format!("Failed to serialize channel config: {e}")))?;
+        let config_json = serde_json::to_string(&channel.config).map_err(|e| {
+            AppError::Validation(format!("Failed to serialize channel config: {e}"))
+        })?;
 
         let conn = self.db.conn();
         let conn_guard = conn.blocking_lock();
@@ -153,8 +155,9 @@ impl ChannelManager {
     pub async fn update_channel(&self, mut channel: Channel) -> Result<()> {
         channel.touch();
 
-        let config_json = serde_json::to_string(&channel.config)
-            .map_err(|e| AppError::Validation(format!("Failed to serialize channel config: {e}")))?;
+        let config_json = serde_json::to_string(&channel.config).map_err(|e| {
+            AppError::Validation(format!("Failed to serialize channel config: {e}"))
+        })?;
 
         let conn = self.db.conn();
         let conn_guard = conn.blocking_lock();

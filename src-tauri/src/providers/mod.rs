@@ -1,11 +1,14 @@
 //! AI Provider implementations
 //! Support for various AI providers (OpenAI, Anthropic, etc.)
 
-pub mod openai;
 pub mod anthropic;
+pub mod openai;
 
-pub use openai::{OpenAIConfig, OpenAIProvider, ChatMessage, ChatCompletionRequest, MessageRole};
-pub use anthropic::{AnthropicConfig, AnthropicProvider, AnthropicMessage, MessageCreateRequest, AnthropicMessageRole, AnthropicMessageContent};
+pub use anthropic::{
+    AnthropicConfig, AnthropicMessage, AnthropicMessageContent, AnthropicMessageRole,
+    AnthropicProvider, MessageCreateRequest,
+};
+pub use openai::{ChatCompletionRequest, ChatMessage, MessageRole, OpenAIConfig, OpenAIProvider};
 
 /// Provider type enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -53,7 +56,10 @@ mod tests {
         assert_eq!(ProviderType::OpenAI.as_str(), "openai");
         assert_eq!(ProviderType::Anthropic.as_str(), "anthropic");
         assert_eq!(ProviderType::from_str("openai"), Some(ProviderType::OpenAI));
-        assert_eq!(ProviderType::from_str("anthropic"), Some(ProviderType::Anthropic));
+        assert_eq!(
+            ProviderType::from_str("anthropic"),
+            Some(ProviderType::Anthropic)
+        );
         assert_eq!(ProviderType::from_str("invalid"), None);
     }
 

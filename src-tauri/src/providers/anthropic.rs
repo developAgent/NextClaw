@@ -227,23 +227,16 @@ pub struct Usage {
 #[serde(tag = "type")]
 pub enum StreamEvent {
     #[serde(rename = "message_start")]
-    MessageStart {
-        message: MessageStart,
-    },
+    MessageStart { message: MessageStart },
     #[serde(rename = "content_block_start")]
     ContentBlockStart {
         index: u32,
         content_block: ContentBlock,
     },
     #[serde(rename = "content_block_delta")]
-    ContentBlockDelta {
-        index: u32,
-        delta: Delta,
-    },
+    ContentBlockDelta { index: u32, delta: Delta },
     #[serde(rename = "content_block_stop")]
-    ContentBlockStop {
-        index: u32,
-    },
+    ContentBlockStop { index: u32 },
     #[serde(rename = "message_delta")]
     MessageDelta {
         delta: MessageDeltaInfo,
@@ -255,9 +248,7 @@ pub enum StreamEvent {
         reason: Option<String>,
     },
     #[serde(rename = "error")]
-    Error {
-        error: ErrorInfo,
-    },
+    Error { error: ErrorInfo },
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -314,7 +305,11 @@ impl AnthropicProvider {
 
     /// Get the endpoint URL
     fn get_endpoint(&self, path: &str) -> String {
-        format!("{}/{}", self.config.get_base_url().trim_end_matches('/'), path)
+        format!(
+            "{}/{}",
+            self.config.get_base_url().trim_end_matches('/'),
+            path
+        )
     }
 
     /// Create a message
@@ -323,7 +318,8 @@ impl AnthropicProvider {
 
         debug!("Creating message with model: {}", request.model);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("x-api-key", &self.config.api_key)
             .header("anthropic-version", &self.config.version)
@@ -360,7 +356,8 @@ impl AnthropicProvider {
         let mut request_with_stream = request;
         request_with_stream.stream = Some(true);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("x-api-key", &self.config.api_key)
             .header("anthropic-version", &self.config.version)
@@ -421,7 +418,10 @@ impl AnthropicProvider {
             Err(e) => {
                 // Check if it's an auth error
                 let error_msg = e.to_string().to_lowercase();
-                if error_msg.contains("401") || error_msg.contains("403") || error_msg.contains("unauthorized") {
+                if error_msg.contains("401")
+                    || error_msg.contains("403")
+                    || error_msg.contains("unauthorized")
+                {
                     Ok(false)
                 } else {
                     // Other errors might still mean the key is valid but the request failed
@@ -463,13 +463,10 @@ mod tests {
 
     #[test]
     fn test_request_creation() {
-        let request = MessageCreateRequest::new(
-            "claude-3",
-            vec![AnthropicMessage::user("Test")],
-        )
-        .with_max_tokens(100)
-        .with_temperature(0.7)
-        .with_system("You are helpful");
+        let request = MessageCreateRequest::new("claude-3", vec![AnthropicMessage::user("Test")])
+            .with_max_tokens(100)
+            .with_temperature(0.7)
+            .with_system("You are helpful");
 
         assert_eq!(request.model, "claude-3");
         assert_eq!(request.max_tokens, Some(100));

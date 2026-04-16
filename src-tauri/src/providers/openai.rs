@@ -232,7 +232,11 @@ impl OpenAIProvider {
 
     /// Get the base URL
     fn get_endpoint(&self, path: &str) -> String {
-        format!("{}/{}", self.config.get_base_url().trim_end_matches('/'), path)
+        format!(
+            "{}/{}",
+            self.config.get_base_url().trim_end_matches('/'),
+            path
+        )
     }
 
     /// List available models
@@ -241,7 +245,8 @@ impl OpenAIProvider {
 
         debug!("Listing models from: {}", url);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .send()
@@ -272,7 +277,8 @@ impl OpenAIProvider {
 
         debug!("Creating chat completion with model: {}", model);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
@@ -308,7 +314,8 @@ impl OpenAIProvider {
         let mut request_with_stream = request;
         request_with_stream.stream = Some(true);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
@@ -361,7 +368,8 @@ impl OpenAIProvider {
     pub async fn validate_api_key(&self) -> Result<bool> {
         let url = self.get_endpoint("models");
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .send()

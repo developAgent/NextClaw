@@ -1,7 +1,7 @@
+use crate::db::connection::Database;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
-use crate::db::connection::Database;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// Diagnostic information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,7 +61,10 @@ pub struct WebSocketDiagnostic {
 
 /// Run diagnostic checks (OpenClaw Doctor)
 #[tauri::command]
-pub async fn run_diagnostics(db: State<'_, Database>, app: AppHandle) -> Result<DiagnosticInfo, String> {
+pub async fn run_diagnostics(
+    db: State<'_, Database>,
+    app: AppHandle,
+) -> Result<DiagnosticInfo, String> {
     info!("Running diagnostic checks...");
 
     let mut checks = Vec::new();
@@ -83,7 +86,10 @@ pub async fn run_diagnostics(db: State<'_, Database>, app: AppHandle) -> Result<
     checks.push(config_status);
 
     // Determine overall status
-    let overall_status = if checks.iter().any(|c| c.status == DiagnosticStatus::Critical) {
+    let overall_status = if checks
+        .iter()
+        .any(|c| c.status == DiagnosticStatus::Critical)
+    {
         DiagnosticStatus::Critical
     } else if checks.iter().any(|c| c.status == DiagnosticStatus::Warning) {
         DiagnosticStatus::Warning
@@ -143,28 +149,30 @@ async fn check_gateway(_app: &AppHandle) -> DiagnosticCheck {
 }
 
 fn check_skills(db: &Database) -> DiagnosticCheck {
-    match db.transaction(|conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
-        let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM skills")?;
+    match db.transaction(
+        |conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
+            let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM skills")?;
 
-        let mut rows = stmt.query([])?;
+            let mut rows = stmt.query([])?;
 
-        if let Some(row) = rows.next()? {
-            let count: i64 = row.get("count").unwrap_or(0);
-            Ok(DiagnosticCheck {
-                name: "Installed Skills".to_string(),
-                status: DiagnosticStatus::Healthy,
-                message: format!("{} skill(s) installed", count),
-                details: None,
-            })
-        } else {
-            Ok(DiagnosticCheck {
-                name: "Installed Skills".to_string(),
-                status: DiagnosticStatus::Healthy,
-                message: "0 skills installed".to_string(),
-                details: None,
-            })
-        }
-    }) {
+            if let Some(row) = rows.next()? {
+                let count: i64 = row.get("count").unwrap_or(0);
+                Ok(DiagnosticCheck {
+                    name: "Installed Skills".to_string(),
+                    status: DiagnosticStatus::Healthy,
+                    message: format!("{} skill(s) installed", count),
+                    details: None,
+                })
+            } else {
+                Ok(DiagnosticCheck {
+                    name: "Installed Skills".to_string(),
+                    status: DiagnosticStatus::Healthy,
+                    message: "0 skills installed".to_string(),
+                    details: None,
+                })
+            }
+        },
+    ) {
         Ok(check) => check,
         Err(e) => DiagnosticCheck {
             name: "Installed Skills".to_string(),
@@ -176,28 +184,30 @@ fn check_skills(db: &Database) -> DiagnosticCheck {
 }
 
 fn check_configuration(db: &Database) -> DiagnosticCheck {
-    match db.transaction(|conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
-        let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM settings")?;
+    match db.transaction(
+        |conn| -> rusqlite::Result<DiagnosticCheck, rusqlite::Error> {
+            let mut stmt = conn.prepare("SELECT COUNT(*) as count FROM settings")?;
 
-        let mut rows = stmt.query([])?;
+            let mut rows = stmt.query([])?;
 
-        if let Some(row) = rows.next()? {
-            let count: i64 = row.get("count").unwrap_or(0);
-            Ok(DiagnosticCheck {
-                name: "Configuration".to_string(),
-                status: DiagnosticStatus::Healthy,
-                message: format!("{} configuration item(s) loaded", count),
-                details: None,
-            })
-        } else {
-            Ok(DiagnosticCheck {
-                name: "Configuration".to_string(),
-                status: DiagnosticStatus::Healthy,
-                message: "0 configuration items loaded".to_string(),
-                details: None,
-            })
-        }
-    }) {
+            if let Some(row) = rows.next()? {
+                let count: i64 = row.get("count").unwrap_or(0);
+                Ok(DiagnosticCheck {
+                    name: "Configuration".to_string(),
+                    status: DiagnosticStatus::Healthy,
+                    message: format!("{} configuration item(s) loaded", count),
+                    details: None,
+                })
+            } else {
+                Ok(DiagnosticCheck {
+                    name: "Configuration".to_string(),
+                    status: DiagnosticStatus::Healthy,
+                    message: "0 configuration items loaded".to_string(),
+                    details: None,
+                })
+            }
+        },
+    ) {
         Ok(check) => check,
         Err(e) => DiagnosticCheck {
             name: "Configuration".to_string(),
@@ -247,27 +257,37 @@ pub async fn get_telemetry_data(
 /// Get token usage statistics
 #[tauri::command]
 pub async fn get_token_usage_stats(db: State<'_, Database>) -> Result<TokenUsageStats, String> {
-    let stats = db.transaction(|conn| -> rusqlite::Result<TokenUsageStats, rusqlite::Error> {
-        let mut stmt = conn.prepare(
-            "SELECT
+    let stats = db
+        .transaction(
+            |conn| -> rusqlite::Result<TokenUsageStats, rusqlite::Error> {
+                let mut stmt = conn.prepare(
+                    "SELECT
                SUM(prompt_tokens) as total_prompt,
                SUM(completion_tokens) as total_completion,
                SUM(total_tokens) as total_tokens,
                COUNT(*) as total_requests
-             FROM token_usage"
-        )?;
+             FROM token_usage",
+                )?;
 
-        let mut rows = stmt.query([])?;
+                let mut rows = stmt.query([])?;
 
-        let row = rows.next()?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
+                let row = rows
+                    .next()?
+                    .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
 
-        Ok(TokenUsageStats {
-            total_prompt_tokens: row.get("total_prompt").ok().flatten().unwrap_or(0),
-            total_completion_tokens: row.get("total_completion").ok().flatten().unwrap_or(0),
-            total_tokens: row.get("total_tokens").ok().flatten().unwrap_or(0),
-            total_requests: row.get("total_requests").ok().flatten().unwrap_or(0),
-        })
-    }).map_err(|e| format!("Failed to query token usage stats: {}", e))?;
+                Ok(TokenUsageStats {
+                    total_prompt_tokens: row.get("total_prompt").ok().flatten().unwrap_or(0),
+                    total_completion_tokens: row
+                        .get("total_completion")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0),
+                    total_tokens: row.get("total_tokens").ok().flatten().unwrap_or(0),
+                    total_requests: row.get("total_requests").ok().flatten().unwrap_or(0),
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to query token usage stats: {}", e))?;
 
     Ok(stats)
 }
@@ -292,50 +312,52 @@ pub async fn get_app_logs(
     let limit = limit.unwrap_or(100);
     let offset = offset.unwrap_or(0);
 
-    let logs = db.transaction(|conn| -> rusqlite::Result<Vec<LogEntry>, rusqlite::Error> {
-        let mut results = Vec::new();
+    let logs = db
+        .transaction(|conn| -> rusqlite::Result<Vec<LogEntry>, rusqlite::Error> {
+            let mut results = Vec::new();
 
-        if let Some(level_filter) = level {
-            let mut stmt = conn.prepare(
-                "SELECT id, level, message, timestamp, context
+            if let Some(level_filter) = level {
+                let mut stmt = conn.prepare(
+                    "SELECT id, level, message, timestamp, context
                  FROM app_logs
                  WHERE level = ?
                  ORDER BY timestamp DESC
-                 LIMIT ? OFFSET ?"
-            )?;
+                 LIMIT ? OFFSET ?",
+                )?;
 
-            let mut rows = stmt.query(rusqlite::params![&level_filter, &limit, &offset])?;
-            while let Some(row) = rows.next()? {
-                results.push(LogEntry {
-                    id: row.get("id")?,
-                    level: row.get("level")?,
-                    message: row.get("message")?,
-                    timestamp: row.get("timestamp")?,
-                    context: row.get("context").ok(),
-                });
-            }
-        } else {
-            let mut stmt = conn.prepare(
-                "SELECT id, level, message, timestamp, context
+                let mut rows = stmt.query(rusqlite::params![&level_filter, &limit, &offset])?;
+                while let Some(row) = rows.next()? {
+                    results.push(LogEntry {
+                        id: row.get("id")?,
+                        level: row.get("level")?,
+                        message: row.get("message")?,
+                        timestamp: row.get("timestamp")?,
+                        context: row.get("context").ok(),
+                    });
+                }
+            } else {
+                let mut stmt = conn.prepare(
+                    "SELECT id, level, message, timestamp, context
                  FROM app_logs
                  ORDER BY timestamp DESC
-                 LIMIT ? OFFSET ?"
-            )?;
+                 LIMIT ? OFFSET ?",
+                )?;
 
-            let mut rows = stmt.query(rusqlite::params![&limit, &offset])?;
-            while let Some(row) = rows.next()? {
-                results.push(LogEntry {
-                    id: row.get("id")?,
-                    level: row.get("level")?,
-                    message: row.get("message")?,
-                    timestamp: row.get("timestamp")?,
-                    context: row.get("context").ok(),
-                });
+                let mut rows = stmt.query(rusqlite::params![&limit, &offset])?;
+                while let Some(row) = rows.next()? {
+                    results.push(LogEntry {
+                        id: row.get("id")?,
+                        level: row.get("level")?,
+                        message: row.get("message")?,
+                        timestamp: row.get("timestamp")?,
+                        context: row.get("context").ok(),
+                    });
+                }
             }
-        }
 
-        Ok(results)
-    }).map_err(|e| format!("Failed to query logs: {}", e))?;
+            Ok(results)
+        })
+        .map_err(|e| format!("Failed to query logs: {}", e))?;
 
     Ok(logs)
 }
@@ -386,9 +408,8 @@ pub async fn export_telemetry_data(
 /// Clear telemetry data
 #[tauri::command]
 pub async fn clear_telemetry_data(db: State<'_, Database>) -> Result<(), String> {
-    db.transaction(|conn| {
-        conn.execute("DELETE FROM token_usage", [])
-    }).map_err(|e| format!("Failed to clear telemetry data: {}", e))?;
+    db.transaction(|conn| conn.execute("DELETE FROM token_usage", []))
+        .map_err(|e| format!("Failed to clear telemetry data: {}", e))?;
 
     info!("Telemetry data cleared");
 

@@ -1,7 +1,7 @@
 pub mod client;
-pub mod models;
 pub mod manager;
+pub mod models;
 
 pub use client::{OllamaClient, OllamaClientConfig};
-pub use models::{OllamaModel, OllamaMessage, OllamaChatRequest, OllamaChatResponse};
 pub use manager::OllamaManager;
+pub use models::{OllamaChatRequest, OllamaChatResponse, OllamaMessage, OllamaModel};

@@ -4,8 +4,8 @@ use crate::utils::error::Result;
 use std::fs;
 use std::path::Path;
 use tauri::State;
-use uuid::Uuid;
 use tracing::{debug, info};
+use uuid::Uuid;
 
 /// List files in a directory
 ///
@@ -39,11 +39,7 @@ pub fn list_files(
 
 /// Read a file's contents
 #[tauri::command]
-pub fn read_file(
-    path: String,
-    session_id: String,
-    db: State<'_, Database>,
-) -> Result<String> {
+pub fn read_file(path: String, session_id: String, db: State<'_, Database>) -> Result<String> {
     info!("Reading file: {}", path);
 
     let content = fs::read_to_string(&path)
@@ -98,7 +94,8 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata> {
         is_file: metadata.is_file(),
         is_dir: metadata.is_dir(),
         is_readonly: metadata.permissions().readonly(),
-        modified: metadata.modified()
+        modified: metadata
+            .modified()
             .ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs() as i64),
@@ -107,11 +104,7 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata> {
 
 /// Delete a file
 #[tauri::command]
-pub fn delete_file(
-    path: String,
-    session_id: String,
-    db: State<'_, Database>,
-) -> Result<()> {
+pub fn delete_file(path: String, session_id: String, db: State<'_, Database>) -> Result<()> {
     info!("Deleting file: {}", path);
 
     fs::remove_file(&path)
@@ -157,10 +150,12 @@ fn list_files_flat(path: &str) -> Result<Vec<FileInfo>> {
     let dir_path = Path::new(path);
     let mut files = Vec::new();
 
-    for entry in fs::read_dir(dir_path)
-        .map_err(|e| crate::utils::error::AppError::File(format!("Failed to read directory: {e}")))?
-    {
-        let entry = entry.map_err(|e| crate::utils::error::AppError::File(format!("Failed to read entry: {e}")))?;
+    for entry in fs::read_dir(dir_path).map_err(|e| {
+        crate::utils::error::AppError::File(format!("Failed to read directory: {e}"))
+    })? {
+        let entry = entry.map_err(|e| {
+            crate::utils::error::AppError::File(format!("Failed to read entry: {e}"))
+        })?;
         let metadata = entry.metadata().ok();
 
         let file_info = FileInfo {
@@ -169,7 +164,8 @@ fn list_files_flat(path: &str) -> Result<Vec<FileInfo>> {
             size: metadata.as_ref().map_or(0, |m| m.len()),
             is_file: metadata.as_ref().map_or(false, |m| m.is_file()),
             is_dir: metadata.as_ref().map_or(false, |m| m.is_dir()),
-            modified: metadata.and_then(|m| m.modified().ok())
+            modified: metadata
+                .and_then(|m| m.modified().ok())
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs() as i64),
         };
@@ -188,10 +184,12 @@ fn list_files_recursive(path: &str) -> Result<Vec<FileInfo>> {
 fn list_files_recursive_helper(path: &str, files: &mut Vec<FileInfo>) -> Result<()> {
     let dir_path = Path::new(path);
 
-    for entry in fs::read_dir(dir_path)
-        .map_err(|e| crate::utils::error::AppError::File(format!("Failed to read directory: {e}")))?
-    {
-        let entry = entry.map_err(|e| crate::utils::error::AppError::File(format!("Failed to read entry: {e}")))?;
+    for entry in fs::read_dir(dir_path).map_err(|e| {
+        crate::utils::error::AppError::File(format!("Failed to read directory: {e}"))
+    })? {
+        let entry = entry.map_err(|e| {
+            crate::utils::error::AppError::File(format!("Failed to read entry: {e}"))
+        })?;
         let metadata = entry.metadata().ok();
         let entry_path = entry.path();
 
@@ -201,7 +199,9 @@ fn list_files_recursive_helper(path: &str, files: &mut Vec<FileInfo>) -> Result<
             size: metadata.as_ref().map_or(0, |m| m.len()),
             is_file: metadata.as_ref().map_or(false, |m| m.is_file()),
             is_dir: metadata.as_ref().map_or(false, |m| m.is_dir()),
-            modified: metadata.clone().and_then(|m| m.modified().ok())
+            modified: metadata
+                .clone()
+                .and_then(|m| m.modified().ok())
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs() as i64),
         };
@@ -230,7 +230,8 @@ fn save_file_operation(db: &Database, operation: &FileOperation) -> Result<()> {
             &operation.path,
             operation.success as i32,
             &operation.error.as_ref().map_or("", |s| s.as_str()),
-        ]
-    ).map_err(|e: rusqlite::Error| crate::utils::error::AppError::Database(e.to_string()))?;
+        ],
+    )
+    .map_err(|e: rusqlite::Error| crate::utils::error::AppError::Database(e.to_string()))?;
     Ok(())
 }

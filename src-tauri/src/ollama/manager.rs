@@ -1,4 +1,4 @@
-use super::{OllamaClient, OllamaClientConfig, OllamaModel, OllamaMessage, OllamaChatRequest};
+use super::{OllamaChatRequest, OllamaClient, OllamaClientConfig, OllamaMessage, OllamaModel};
 use crate::db::Database;
 use crate::utils::error::{AppError, Result};
 use futures::StreamExt;
@@ -35,7 +35,9 @@ impl OllamaManager {
             .map_err(|e| AppError::Internal(format!("Failed to create Ollama client: {}", e)))?;
 
         // Check connection
-        let connected = client.check_connection().await
+        let connected = client
+            .check_connection()
+            .await
             .map_err(|e| AppError::Internal(format!("Failed to check Ollama connection: {}", e)))?;
 
         if connected {
@@ -62,7 +64,9 @@ impl OllamaManager {
     /// Refresh the list of available models
     pub async fn refresh_models(&self) -> Result<()> {
         if let Some(client) = &self.client {
-            let models = client.list_models().await
+            let models = client
+                .list_models()
+                .await
                 .map_err(|e| AppError::Internal(format!("Failed to list models: {}", e)))?;
 
             let model_count = models.len();
@@ -86,28 +90,36 @@ impl OllamaManager {
     /// Pull a model from Ollama registry
     pub async fn pull_model(&self, model_name: String) -> Result<()> {
         if let Some(client) = &self.client {
-            client.pull_model(&model_name).await
+            client
+                .pull_model(&model_name)
+                .await
                 .map_err(|e| AppError::Internal(format!("Failed to pull model: {}", e)))?;
 
             // Refresh models after pulling
             self.refresh_models().await?;
             Ok(())
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
     /// Delete a model
     pub async fn delete_model(&self, model_name: String) -> Result<()> {
         if let Some(client) = &self.client {
-            client.delete_model(&model_name).await
+            client
+                .delete_model(&model_name)
+                .await
                 .map_err(|e| AppError::Internal(format!("Failed to delete model: {}", e)))?;
 
             // Refresh models after deleting
             self.refresh_models().await?;
             Ok(())
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
@@ -117,12 +129,16 @@ impl OllamaManager {
             // Store conversation before consuming the request
             self.store_conversation(&request).await?;
 
-            let response = client.chat(request).await
+            let response = client
+                .chat(request)
+                .await
                 .map_err(|e| AppError::Internal(format!("Chat request failed: {}", e)))?;
 
             Ok(response.message.content)
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
@@ -133,14 +149,17 @@ impl OllamaManager {
         mut callback: impl FnMut(String) + Send + 'static,
     ) -> Result<()> {
         if let Some(client) = &self.client {
-            let mut stream = client.chat_stream(request).await
+            let mut stream = client
+                .chat_stream(request)
+                .await
                 .map_err(|e| AppError::Internal(format!("Streaming chat request failed: {}", e)))?;
 
             let mut full_response = String::new();
 
             while let Some(chunk_result) = stream.next().await {
-                let chunk = chunk_result
-                    .map_err(|e| AppError::Internal(format!("Failed to read stream chunk: {}", e)))?;
+                let chunk = chunk_result.map_err(|e| {
+                    AppError::Internal(format!("Failed to read stream chunk: {}", e))
+                })?;
 
                 if !chunk.is_empty() {
                     callback(chunk.clone());
@@ -150,27 +169,37 @@ impl OllamaManager {
 
             Ok(())
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
     /// Generate completion from a prompt
     pub async fn generate(&self, model: String, prompt: String) -> Result<String> {
         if let Some(client) = &self.client {
-            client.generate(&model, &prompt).await
+            client
+                .generate(&model, &prompt)
+                .await
                 .map_err(|e| AppError::Internal(format!("Generate request failed: {}", e)))
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
     /// Embed text into vectors
     pub async fn embed(&self, model: String, input: String) -> Result<Vec<f32>> {
         if let Some(client) = &self.client {
-            client.embed(&model, &input).await
+            client
+                .embed(&model, &input)
+                .await
                 .map_err(|e| AppError::Internal(format!("Embed request failed: {}", e)))
         } else {
-            Err(AppError::Internal("Ollama client not initialized".to_string()))
+            Err(AppError::Internal(
+                "Ollama client not initialized".to_string(),
+            ))
         }
     }
 
@@ -182,15 +211,17 @@ impl OllamaManager {
         // Create session
         let conn = self.db.conn();
         let conn_guard = conn.blocking_lock();
-        conn_guard.execute(
-            "INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![
-                session_id.to_string(),
-                format!("Ollama Chat: {}", request.model),
-                chrono::Utc::now().to_rfc3339(),
-                chrono::Utc::now().to_rfc3339(),
-            ],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        conn_guard
+            .execute(
+                "INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![
+                    session_id.to_string(),
+                    format!("Ollama Chat: {}", request.model),
+                    chrono::Utc::now().to_rfc3339(),
+                    chrono::Utc::now().to_rfc3339(),
+                ],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
         // Store messages
         for message in &request.messages {
@@ -216,7 +247,9 @@ impl OllamaManager {
         let client = OllamaClient::new(config)
             .map_err(|e| AppError::Internal(format!("Failed to create Ollama client: {}", e)))?;
 
-        let connected = client.check_connection().await
+        let connected = client
+            .check_connection()
+            .await
             .map_err(|e| AppError::Internal(format!("Failed to check Ollama connection: {}", e)))?;
 
         if connected {

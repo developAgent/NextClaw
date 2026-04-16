@@ -13,8 +13,7 @@ use tracing_subscriber::{
 /// - File output in production
 /// - Environment-based log level filtering
 pub fn setup_logging() -> Option<WorkerGuard> {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let fmt_layer = fmt::layer()
         .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)

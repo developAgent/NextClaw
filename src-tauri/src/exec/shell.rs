@@ -57,8 +57,9 @@ impl ShellExecutor {
         let requires_confirmation = self.validator.requires_confirmation(command);
         if requires_confirmation {
             info!("Command requires confirmation: {}", command);
-            // In a real implementation, this would return a confirmation request
-            // For now, we'll log and continue
+            return Err(AppError::Security(
+                "Command requires explicit user confirmation before execution".to_string(),
+            ));
         }
 
         // Sanitize command
@@ -151,7 +152,7 @@ impl ShellExecutor {
     }
 
     /// Check if command requires confirmation
-pub fn requires_confirmation(&self, command: &str) -> bool {
+    pub fn requires_confirmation(&self, command: &str) -> bool {
         self.validator.requires_confirmation(command)
     }
 }
@@ -191,20 +192,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_invalid_command() {
+    async fn test_requires_confirmation_blocks_execution() {
         let executor = ShellExecutor::new(vec![], vec![], None, 10);
-        let result = executor.execute("nonexistentcommand12345").await;
-        assert!(result.is_err());
+        let result = executor.execute("rm -rf /tmp/test-dir").await;
+        assert!(matches!(result, Err(AppError::Security(_))));
     }
 
     #[test]
     fn test_blacklist_blocks_command() {
-        let executor = ShellExecutor::new(
-            vec![],
-            vec![r"rm -rf".to_string()],
-            None,
-            10,
-        );
+        let executor = ShellExecutor::new(vec![], vec![r"rm -rf".to_string()], None, 10);
 
         // This should be async but we can test validation directly
         let validator = executor.validator.validate_command("rm -rf /tmp");

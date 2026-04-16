@@ -83,8 +83,7 @@ impl SkillManifest {
         }
 
         // Validate semantic version
-        semver::Version::parse(&self.version)
-            .map_err(|e| format!("Invalid version: {}", e))?;
+        semver::Version::parse(&self.version).map_err(|e| format!("Invalid version: {}", e))?;
 
         // Validate permissions
         for permission in &self.permissions {
@@ -101,7 +100,9 @@ impl SkillManifest {
 
     /// Check if the skill requires a specific permission
     pub fn has_permission(&self, permission_type: &str) -> bool {
-        self.permissions.iter().any(|p| p.permission_type == permission_type)
+        self.permissions
+            .iter()
+            .any(|p| p.permission_type == permission_type)
     }
 }
 
@@ -149,12 +150,22 @@ impl SkillPermission {
 
         // Validate known permission types
         let known_types = vec![
-            "file.read", "file.write", "file.delete", "file.execute",
-            "network.http", "network.ws", "network.tcp", "network.udp",
-            "system.exec", "system.env", "system.process",
-            "clipboard.read", "clipboard.write",
+            "file.read",
+            "file.write",
+            "file.delete",
+            "file.execute",
+            "network.http",
+            "network.ws",
+            "network.tcp",
+            "network.udp",
+            "system.exec",
+            "system.env",
+            "system.process",
+            "clipboard.read",
+            "clipboard.write",
             "notification.send",
-            "database.read", "database.write",
+            "database.read",
+            "database.write",
         ];
 
         if !known_types.contains(&self.permission_type.as_str()) {
@@ -272,10 +283,7 @@ mod tests {
 
     #[test]
     fn test_permission_creation() {
-        let perm = SkillPermission::new(
-            "file.read".to_string(),
-            "Read files".to_string(),
-        );
+        let perm = SkillPermission::new("file.read".to_string(), "Read files".to_string());
 
         assert_eq!(perm.permission_type, "file.read");
         assert!(perm.required);
@@ -283,10 +291,8 @@ mod tests {
 
     #[test]
     fn test_permission_with_scope() {
-        let perm = SkillPermission::new(
-            "file.read".to_string(),
-            "Read files".to_string(),
-        ).with_scope("/tmp".to_string());
+        let perm = SkillPermission::new("file.read".to_string(), "Read files".to_string())
+            .with_scope("/tmp".to_string());
 
         assert_eq!(perm.scope, Some("/tmp".to_string()));
     }

@@ -1,10 +1,10 @@
 //! Cron job management commands
 //! Provides Tauri commands for managing scheduled tasks
 
-use crate::cron::{CronScheduler, CreateCronJobRequest, UpdateCronJobRequest, CronJob};
+use crate::cron::{CreateCronJobRequest, CronJob, CronScheduler, UpdateCronJobRequest};
 use crate::utils::error::Result;
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 
 /// Create a new cron job
 #[tauri::command]
@@ -17,9 +17,7 @@ pub async fn create_cron_job(
 
 /// Get all cron jobs
 #[tauri::command]
-pub async fn get_all_cron_jobs(
-    scheduler: State<'_, Arc<CronScheduler>>,
-) -> Result<Vec<CronJob>> {
+pub async fn get_all_cron_jobs(scheduler: State<'_, Arc<CronScheduler>>) -> Result<Vec<CronJob>> {
     scheduler.get_all_jobs().await
 }
 
@@ -43,10 +41,7 @@ pub async fn update_cron_job(
 
 /// Delete a cron job
 #[tauri::command]
-pub async fn delete_cron_job(
-    id: String,
-    scheduler: State<'_, Arc<CronScheduler>>,
-) -> Result<()> {
+pub async fn delete_cron_job(id: String, scheduler: State<'_, Arc<CronScheduler>>) -> Result<()> {
     scheduler.delete_job(&id).await
 }
 
@@ -62,30 +57,24 @@ pub async fn get_cron_executions(
 
 /// Start the cron scheduler
 #[tauri::command]
-pub async fn start_cron_scheduler(
-    scheduler: State<'_, Arc<CronScheduler>>,
-) -> Result<()> {
+pub async fn start_cron_scheduler(scheduler: State<'_, Arc<CronScheduler>>) -> Result<()> {
     scheduler.start().await;
     Ok(())
 }
 
 /// Stop the cron scheduler
 #[tauri::command]
-pub async fn stop_cron_scheduler(
-    scheduler: State<'_, Arc<CronScheduler>>,
-) -> Result<()> {
+pub async fn stop_cron_scheduler(scheduler: State<'_, Arc<CronScheduler>>) -> Result<()> {
     scheduler.stop().await;
     Ok(())
 }
 
 /// Run a cron job immediately (quick run)
 #[tauri::command]
-pub async fn run_cron_job(
-    id: String,
-    scheduler: State<'_, Arc<CronScheduler>>,
-) -> Result<String> {
-    let job = scheduler.get_job(&id).await?
-        .ok_or_else(|| crate::utils::error::AppError::Validation(format!("Job not found: {}", id)))?;
+pub async fn run_cron_job(id: String, scheduler: State<'_, Arc<CronScheduler>>) -> Result<String> {
+    let job = scheduler.get_job(&id).await?.ok_or_else(|| {
+        crate::utils::error::AppError::Validation(format!("Job not found: {}", id))
+    })?;
 
     // Create execution record
     let db = scheduler.db.lock().await;
@@ -105,7 +94,10 @@ pub async fn run_cron_job(
             None::<&str>,
             None::<&str>,
         ],
-    ).map_err(|e| crate::utils::error::AppError::Database(format!("Failed to create execution: {}", e)))?;
+    )
+    .map_err(|e| {
+        crate::utils::error::AppError::Database(format!("Failed to create execution: {}", e))
+    })?;
     drop(db);
 
     // Execute the job
@@ -124,8 +116,17 @@ pub async fn run_cron_job(
         SET status = ?1, completed_at = ?2, output = ?3, error = ?4
         WHERE id = ?5
         "#,
-        rusqlite::params![status, &chrono::Utc::now().to_rfc3339(), output, error, &execution.id],
-    ).map_err(|e| crate::utils::error::AppError::Database(format!("Failed to update execution: {}", e)))?;
+        rusqlite::params![
+            status,
+            &chrono::Utc::now().to_rfc3339(),
+            output,
+            error,
+            &execution.id
+        ],
+    )
+    .map_err(|e| {
+        crate::utils::error::AppError::Database(format!("Failed to update execution: {}", e))
+    })?;
 
     result
 }

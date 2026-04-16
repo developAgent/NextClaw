@@ -49,6 +49,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [chatInputError, setChatInputError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -172,9 +173,11 @@ export default function Chat() {
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
     if (!selectedAgentId && !currentSession?.agent_id) {
-      alert('Please select an agent first.');
+      setChatInputError('Select an agent before sending a message.');
       return;
     }
+
+    setChatInputError(null);
 
     const userContent = inputValue.trim();
     const userMessage: Message = {
@@ -292,6 +295,7 @@ export default function Chat() {
                       return;
                     }
                     setSelectedAgentId(e.target.value);
+                    setChatInputError(null);
                   }}
                   disabled={Boolean(currentSession?.agent_id) || agents.length === 0}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
@@ -425,13 +429,25 @@ export default function Chat() {
         </div>
 
         <div className="border-t border-zinc-800 p-4">
+          {chatInputError && (
+            <p className="mb-2 text-sm text-red-400">{chatInputError}</p>
+          )}
           <div className="flex gap-2">
             <textarea
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                if (chatInputError) {
+                  setChatInputError(null);
+                }
+              }}
               onKeyDown={handleKeyPress}
               placeholder={selectedAgent ? `Message ${selectedAgent.name}...` : 'Select an agent before typing...'}
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`flex-1 bg-zinc-800 border rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 ${
+                chatInputError
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-zinc-700 focus:ring-blue-500'
+              }`}
               rows={1}
               style={{ minHeight: '40px', maxHeight: '120px' }}
               disabled={isLoading || (!selectedAgent && !currentSession?.agent_id)}

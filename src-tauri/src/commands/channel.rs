@@ -5,9 +5,7 @@ use tracing::info;
 
 /// Get all channels
 #[tauri::command]
-pub async fn get_all_channels(
-    manager: State<'_, ChannelManager>,
-) -> Result<Vec<Channel>> {
+pub async fn get_all_channels(manager: State<'_, ChannelManager>) -> Result<Vec<Channel>> {
     manager.get_all_channels().await
 }
 
@@ -22,10 +20,7 @@ pub async fn get_channel(
 
 /// Add a new channel
 #[tauri::command]
-pub async fn add_channel(
-    channel: Channel,
-    manager: State<'_, ChannelManager>,
-) -> Result<()> {
+pub async fn add_channel(channel: Channel, manager: State<'_, ChannelManager>) -> Result<()> {
     manager.add_channel(channel.clone()).await?;
     info!("Added channel: {}", channel.name);
     Ok(())
@@ -33,10 +28,7 @@ pub async fn add_channel(
 
 /// Update an existing channel
 #[tauri::command]
-pub async fn update_channel(
-    channel: Channel,
-    manager: State<'_, ChannelManager>,
-) -> Result<()> {
+pub async fn update_channel(channel: Channel, manager: State<'_, ChannelManager>) -> Result<()> {
     manager.update_channel(channel.clone()).await?;
     info!("Updated channel: {}", channel.name);
     Ok(())
@@ -44,10 +36,7 @@ pub async fn update_channel(
 
 /// Delete a channel
 #[tauri::command]
-pub async fn delete_channel(
-    id: String,
-    manager: State<'_, ChannelManager>,
-) -> Result<()> {
+pub async fn delete_channel(id: String, manager: State<'_, ChannelManager>) -> Result<()> {
     manager.delete_channel(&id).await?;
     info!("Deleted channel: {}", id);
     Ok(())
@@ -55,19 +44,14 @@ pub async fn delete_channel(
 
 /// Set default channel
 #[tauri::command]
-pub async fn set_default_channel(
-    id: String,
-    manager: State<'_, ChannelManager>,
-) -> Result<()> {
+pub async fn set_default_channel(id: String, manager: State<'_, ChannelManager>) -> Result<()> {
     manager.set_default_channel(&id).await?;
     Ok(())
 }
 
 /// Get default channel
 #[tauri::command]
-pub async fn get_default_channel(
-    manager: State<'_, ChannelManager>,
-) -> Result<Option<Channel>> {
+pub async fn get_default_channel(manager: State<'_, ChannelManager>) -> Result<Option<Channel>> {
     manager.get_default_channel().await
 }
 
@@ -82,9 +66,7 @@ pub async fn check_channel_health(
 
 /// Get channel configuration
 #[tauri::command]
-pub async fn get_channel_config(
-    manager: State<'_, ChannelManager>,
-) -> Result<ChannelConfig> {
+pub async fn get_channel_config(manager: State<'_, ChannelManager>) -> Result<ChannelConfig> {
     Ok(manager.get_config().await)
 }
 

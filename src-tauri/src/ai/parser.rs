@@ -75,7 +75,9 @@ impl ResponseParser {
     #[must_use]
     pub fn clean_response(&self, response: &str, remove_code: bool) -> String {
         if remove_code {
-            self.code_block_pattern.replace_all(response, "").to_string()
+            self.code_block_pattern
+                .replace_all(response, "")
+                .to_string()
         } else {
             response.to_string()
         }

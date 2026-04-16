@@ -35,13 +35,6 @@
   "plugins": {
     "shell": {
       "open": true
-    },
-    "updater": {
-      "endpoints": [
-        "https://github.com/yourusername/NextClaw/releases/latest/download/latest.json"
-      ],
-      "dialog": true,
-      "pubkey": "YOUR_PUBLIC_KEY_HERE"
     }
   }
 }

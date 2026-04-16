@@ -1,10 +1,12 @@
 //! Channel account management commands
 //! Provides Tauri commands for managing channel accounts
 
-use crate::channel_accounts::{ChannelAccountManager, CreateChannelAccountRequest, UpdateChannelAccountRequest};
+use crate::channel_accounts::{
+    ChannelAccountManager, CreateChannelAccountRequest, UpdateChannelAccountRequest,
+};
 use crate::utils::error::Result;
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 
 /// Create a new channel account
 #[tauri::command]

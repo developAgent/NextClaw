@@ -34,7 +34,7 @@ impl Default for SandboxConfig {
             allowed_domains: Vec::new(),
             enable_system_exec: false,
             max_execution_time_ms: Some(30000), // 30 seconds default
-            max_memory_mb: Some(128), // 128MB default
+            max_memory_mb: Some(128),           // 128MB default
             enable_clipboard: false,
         }
     }
@@ -55,7 +55,7 @@ impl SandboxConfig {
             allowed_domains: Vec::new(), // All domains
             enable_system_exec: false,
             max_execution_time_ms: Some(60000), // 60 seconds
-            max_memory_mb: Some(256), // 256MB
+            max_memory_mb: Some(256),           // 256MB
             enable_clipboard: true,
         }
     }
@@ -106,7 +106,11 @@ impl Sandbox {
     }
 
     /// Check if a file operation is allowed
-    pub fn check_file_access(&self, path: &PathBuf, operation: &str) -> Result<(), PermissionError> {
+    pub fn check_file_access(
+        &self,
+        path: &PathBuf,
+        operation: &str,
+    ) -> Result<(), PermissionError> {
         if !self.config.enable_filesystem {
             return Err(PermissionError::Denied {
                 permission: format!("file.{}", operation),
@@ -114,9 +118,11 @@ impl Sandbox {
         }
 
         // Check if path is in allowed paths
-        let is_allowed = self.config.allowed_paths.iter().any(|allowed| {
-            path.starts_with(allowed)
-        });
+        let is_allowed = self
+            .config
+            .allowed_paths
+            .iter()
+            .any(|allowed| path.starts_with(allowed));
 
         if !is_allowed {
             return Err(PermissionError::Denied {
@@ -130,7 +136,8 @@ impl Sandbox {
             Some(path.to_string_lossy().to_string()),
         );
 
-        self.permission_checker.check_permission(&self.skill_id, &permission)
+        self.permission_checker
+            .check_permission(&self.skill_id, &permission)
     }
 
     /// Check if a network request is allowed
@@ -143,9 +150,11 @@ impl Sandbox {
 
         // Check if domain is in allowed domains
         if !self.config.allowed_domains.is_empty() {
-            let is_allowed = self.config.allowed_domains.iter().any(|allowed| {
-                domain.ends_with(allowed) || domain == *allowed
-            });
+            let is_allowed = self
+                .config
+                .allowed_domains
+                .iter()
+                .any(|allowed| domain.ends_with(allowed) || domain == *allowed);
 
             if !is_allowed {
                 return Err(PermissionError::Denied {
@@ -155,12 +164,10 @@ impl Sandbox {
         }
 
         // Check permission with permission checker
-        let permission = Permission::new(
-            "network.http".to_string(),
-            Some(domain.to_string()),
-        );
+        let permission = Permission::new("network.http".to_string(), Some(domain.to_string()));
 
-        self.permission_checker.check_permission(&self.skill_id, &permission)
+        self.permission_checker
+            .check_permission(&self.skill_id, &permission)
     }
 
     /// Check if system command execution is allowed
@@ -172,12 +179,10 @@ impl Sandbox {
         }
 
         // Check permission with permission checker
-        let permission = Permission::new(
-            "system.exec".to_string(),
-            Some(command.to_string()),
-        );
+        let permission = Permission::new("system.exec".to_string(), Some(command.to_string()));
 
-        self.permission_checker.check_permission(&self.skill_id, &permission)
+        self.permission_checker
+            .check_permission(&self.skill_id, &permission)
     }
 
     /// Check if clipboard access is allowed
@@ -189,12 +194,10 @@ impl Sandbox {
         }
 
         // Check permission with permission checker
-        let permission = Permission::new(
-            format!("clipboard.{}", operation),
-            None,
-        );
+        let permission = Permission::new(format!("clipboard.{}", operation), None);
 
-        self.permission_checker.check_permission(&self.skill_id, &permission)
+        self.permission_checker
+            .check_permission(&self.skill_id, &permission)
     }
 
     /// Get sandbox configuration

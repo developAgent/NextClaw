@@ -9,9 +9,7 @@ use tracing::{debug, info};
 ///
 /// Note: API keys are excluded for security
 #[tauri::command]
-pub fn get_config(
-    db: State<'_, Database>,
-) -> Result<String> {
+pub fn get_config(db: State<'_, Database>) -> Result<String> {
     let config = Config::load()?;
     let api_key_exists = db.get_secret("api_key")?.is_some();
 
@@ -46,8 +44,9 @@ pub fn get_config(
 /// Update application configuration
 #[tauri::command]
 pub fn update_config(config_update: String) -> Result<()> {
-    let update: ConfigUpdate = serde_json::from_str(&config_update)
-        .map_err(|e| crate::utils::error::AppError::Validation(format!("Invalid config update: {e}")))?;
+    let update: ConfigUpdate = serde_json::from_str(&config_update).map_err(|e| {
+        crate::utils::error::AppError::Validation(format!("Invalid config update: {e}"))
+    })?;
 
     let mut current_config = Config::load()?;
 
@@ -104,10 +103,7 @@ pub fn update_config(config_update: String) -> Result<()> {
 ///
 /// The key is stored encrypted in the database
 #[tauri::command]
-pub fn set_api_key(
-    api_key: String,
-    db: State<'_, Database>,
-) -> Result<()> {
+pub fn set_api_key(api_key: String, db: State<'_, Database>) -> Result<()> {
     let secret = SecretString::new(api_key);
     db.set_secret("api_key", secret)?;
     info!("API key updated");
@@ -116,9 +112,7 @@ pub fn set_api_key(
 
 /// Delete Claude API key
 #[tauri::command]
-pub fn delete_api_key(
-    db: State<'_, Database>,
-) -> Result<()> {
+pub fn delete_api_key(db: State<'_, Database>) -> Result<()> {
     db.delete_config("api_key")?;
     info!("API key deleted");
     Ok(())

@@ -1,13 +1,13 @@
 use crate::db::Database;
 use crate::skills::manifest::SkillManifest;
-use crate::skills::permissions::{PermissionChecker, PermissionSet};
+use crate::skills::permissions::{Permission, PermissionChecker, PermissionSet};
 use crate::skills::runtime::{WasmArgument, WasmExecutionResult, WasmModule, WasmRuntime};
 use crate::skills::sandbox::SandboxConfig;
 use crate::utils::error::{AppError, Result};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, info};
@@ -16,8 +16,8 @@ use tracing::{debug, info};
 pub struct InstalledSkill {
     pub manifest: SkillManifest,
     pub enabled: bool,
+    pub permissions: PermissionSet,
 }
-
 
 /// WASM host configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,6 +50,30 @@ pub struct WasmHost {
 }
 
 impl WasmHost {
+    fn runtime_with_permissions(&self, permissions: PermissionSet) -> Arc<WasmRuntime> {
+        let mut runtime = WasmRuntime::new(
+            crate::skills::runtime::WasmRuntimeConfig::default(),
+            self.config.sandbox_config.clone(),
+        );
+        runtime.set_permissions(permissions);
+        Arc::new(runtime)
+    }
+
+    fn default_permissions_from_manifest(manifest: &SkillManifest) -> PermissionSet {
+        let mut permissions = PermissionSet::new();
+
+        for permission in &manifest.permissions {
+            let permission_value =
+                Permission::new(permission.permission_type.clone(), permission.scope.clone());
+
+            if permission.required {
+                permissions.grant(permission_value);
+            }
+        }
+
+        permissions
+    }
+
     /// Create a new WASM host
     pub fn new(config: WasmHostConfig, db: Arc<Database>) -> Self {
         Self {
@@ -84,7 +108,8 @@ impl WasmHost {
         let mut loaded_count = 0;
         for installed_skill in installed_skills {
             if installed_skill.enabled {
-                self.load_skill_into_memory(&installed_skill.manifest).await?;
+                self.load_skill_into_memory(&installed_skill.manifest, installed_skill.permissions)
+                    .await?;
                 loaded_count += 1;
             }
         }
@@ -99,7 +124,7 @@ impl WasmHost {
         let conn_guard = conn.blocking_lock();
 
         let mut stmt = conn_guard
-            .prepare("SELECT config, enabled FROM skills ORDER BY name COLLATE NOCASE ASC")
+            .prepare("SELECT config, enabled, permissions_json FROM skills ORDER BY name COLLATE NOCASE ASC")
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let rows = stmt
@@ -107,37 +132,48 @@ impl WasmHost {
                 Ok((
                     row.get::<_, Option<String>>(0)?,
                     row.get::<_, bool>(1)?,
+                    row.get::<_, Option<String>>(2)?,
                 ))
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut installed_skills = Vec::new();
         for row in rows {
-            let (manifest_json, enabled) = row.map_err(|e| AppError::Database(e.to_string()))?;
+            let (manifest_json, enabled, permissions_json) =
+                row.map_err(|e| AppError::Database(e.to_string()))?;
             let Some(manifest_json) = manifest_json else {
                 continue;
             };
 
             let manifest: SkillManifest = serde_json::from_str(&manifest_json)
                 .map_err(|e| AppError::Database(e.to_string()))?;
-            installed_skills.push(InstalledSkill { manifest, enabled });
+            let permissions = permissions_json
+                .as_deref()
+                .map(serde_json::from_str::<PermissionSet>)
+                .transpose()
+                .map_err(|e| AppError::Database(e.to_string()))?
+                .unwrap_or_else(|| Self::default_permissions_from_manifest(&manifest));
+            installed_skills.push(InstalledSkill {
+                manifest,
+                enabled,
+                permissions,
+            });
         }
 
         Ok(installed_skills)
     }
 
     pub async fn set_skill_enabled(&self, skill_id: &str, enabled: bool) -> Result<()> {
-        let manifest = {
-            let installed_skills = self.list_installed_skills().await?;
-            installed_skills
-                .into_iter()
-                .find(|skill| skill.manifest.id == skill_id)
-                .map(|skill| skill.manifest)
-                .ok_or_else(|| AppError::Validation(format!("Skill not found: {}", skill_id)))?
-        };
+        let installed_skill = self
+            .list_installed_skills()
+            .await?
+            .into_iter()
+            .find(|skill| skill.manifest.id == skill_id)
+            .ok_or_else(|| AppError::Validation(format!("Skill not found: {}", skill_id)))?;
 
         if enabled {
-            self.load_skill_into_memory(&manifest).await?;
+            self.load_skill_into_memory(&installed_skill.manifest, installed_skill.permissions)
+                .await?;
         } else {
             self.unload_skill_from_memory(skill_id).await;
         }
@@ -155,12 +191,18 @@ impl WasmHost {
     }
 
     /// Register a new skill
-    pub async fn register_skill(&self, module: WasmModule, permissions: PermissionSet) -> Result<()> {
+    pub async fn register_skill(
+        &self,
+        module: WasmModule,
+        permissions: PermissionSet,
+    ) -> Result<()> {
         let skill_id = module.manifest().id.clone();
 
         let modules = self.modules.read().await;
         if modules.len() >= self.config.max_loaded_modules {
-            return Err(AppError::Internal("Maximum number of loaded modules reached".to_string()));
+            return Err(AppError::Internal(
+                "Maximum number of loaded modules reached".to_string(),
+            ));
         }
         drop(modules);
 
@@ -172,38 +214,44 @@ impl WasmHost {
 
         {
             let mut checker = self.permission_checker.lock().await;
-            checker.set_permissions(skill_id.clone(), permissions);
+            checker.set_permissions(skill_id.clone(), permissions.clone());
         }
 
-        let runtime = Arc::new(WasmRuntime::new(
-            crate::skills::runtime::WasmRuntimeConfig::default(),
-            self.config.sandbox_config.clone(),
-        ));
+        let runtime = self.runtime_with_permissions(permissions);
         let mut runtimes = self.runtimes.write().await;
         runtimes.insert(skill_id.clone(), runtime);
 
-        self.store_skill_in_db(&module).await?;
+        self.store_skill_in_db(&module, &permissions).await?;
 
         info!("Registered skill: {}", module.manifest().name);
         Ok(())
     }
 
-    async fn load_skill_into_memory(&self, manifest: &SkillManifest) -> Result<()> {
+    async fn load_skill_into_memory(
+        &self,
+        manifest: &SkillManifest,
+        permissions: PermissionSet,
+    ) -> Result<()> {
         let skill_path = self.get_skill_path(&manifest.id)?;
         if !skill_path.exists() {
-            return Err(AppError::Validation(format!("Skill files not found: {}", manifest.id)));
+            return Err(AppError::Validation(format!(
+                "Skill files not found: {}",
+                manifest.id
+            )));
         }
 
-        let module = self.load_skill_from_file(skill_path).await?;
+        let module = self.load_skill_from_directory(&skill_path).await?;
 
         let mut modules = self.modules.write().await;
         modules.insert(manifest.id.clone(), module);
         drop(modules);
 
-        let runtime = Arc::new(WasmRuntime::new(
-            crate::skills::runtime::WasmRuntimeConfig::default(),
-            self.config.sandbox_config.clone(),
-        ));
+        {
+            let mut checker = self.permission_checker.lock().await;
+            checker.set_permissions(manifest.id.clone(), permissions.clone());
+        }
+
+        let runtime = self.runtime_with_permissions(permissions);
         let mut runtimes = self.runtimes.write().await;
         runtimes.insert(manifest.id.clone(), runtime);
 
@@ -220,7 +268,6 @@ impl WasmHost {
         runtimes.remove(skill_id);
     }
 
-
     /// Unregister a skill
     pub async fn unregister_skill(&self, skill_id: &str) -> Result<()> {
         self.unload_skill_from_memory(skill_id).await;
@@ -228,7 +275,8 @@ impl WasmHost {
         // Remove from database
         let conn = self.db.conn();
         let conn_guard = conn.blocking_lock();
-        conn_guard.execute("DELETE FROM skills WHERE id = ?1", [skill_id])
+        conn_guard
+            .execute("DELETE FROM skills WHERE id = ?1", [skill_id])
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         // Remove permissions
@@ -253,7 +301,12 @@ impl WasmHost {
             let guard = self.modules.read().await;
             match guard.get(skill_id) {
                 Some(m) => m.clone(),
-                None => return Err(AppError::Validation(format!("Skill not found: {}", skill_id))),
+                None => {
+                    return Err(AppError::Validation(format!(
+                        "Skill not found: {}",
+                        skill_id
+                    )))
+                }
             }
         };
 
@@ -262,7 +315,12 @@ impl WasmHost {
             let guard = self.runtimes.read().await;
             match guard.get(skill_id) {
                 Some(r) => Arc::clone(r),
-                None => return Err(AppError::Validation(format!("Runtime not found for skill: {}", skill_id))),
+                None => {
+                    return Err(AppError::Validation(format!(
+                        "Runtime not found for skill: {}",
+                        skill_id
+                    )))
+                }
             }
         };
 
@@ -270,7 +328,8 @@ impl WasmHost {
 
         // Execute
         tokio::task::spawn_blocking(move || {
-            runtime.execute_module(&module, &function_owned, args)
+            runtime
+                .execute_module(&module, &function_owned, args)
                 .map_err(|e| AppError::Internal(format!("Skill execution failed: {}", e)))
         })
         .await
@@ -296,14 +355,14 @@ impl WasmHost {
     }
 
     /// Load a skill from a file
-    async fn load_skill_from_file(&self, path: PathBuf) -> Result<WasmModule> {
+    async fn load_skill_from_directory(&self, path: &Path) -> Result<WasmModule> {
         // Read the manifest file
         let manifest_path = path.join("manifest.json");
         let manifest_json = std::fs::read_to_string(&manifest_path)
             .context(format!("Failed to read manifest: {:?}", manifest_path))?;
 
-        let manifest: SkillManifest = serde_json::from_str(&manifest_json)
-            .context("Failed to parse manifest")?;
+        let manifest: SkillManifest =
+            serde_json::from_str(&manifest_json).context("Failed to parse manifest")?;
 
         // Read the WASM file
         let wasm_path = path.join("skill.wasm");
@@ -313,18 +372,28 @@ impl WasmHost {
         Ok(WasmModule::new(wasm_bytes, manifest)?)
     }
 
+    pub fn skill_storage_path(&self, skill_id: &str) -> Result<PathBuf> {
+        self.get_skill_path(skill_id)
+    }
+
     /// Store a skill in the database
-    async fn store_skill_in_db(&self, module: &WasmModule) -> Result<()> {
+    async fn store_skill_in_db(
+        &self,
+        module: &WasmModule,
+        permissions: &PermissionSet,
+    ) -> Result<()> {
         let conn = self.db.conn();
         let conn_guard = conn.blocking_lock();
 
         let manifest = module.manifest();
         let now = chrono::Utc::now().timestamp();
+        let permissions_json =
+            serde_json::to_string(permissions).map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn_guard.execute(
             r#"
-            INSERT OR REPLACE INTO skills (id, name, version, description, author, enabled, config, installed_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            INSERT OR REPLACE INTO skills (id, name, version, description, author, enabled, config, permissions_json, installed_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
             rusqlite::params![
                 &manifest.id,
@@ -334,6 +403,7 @@ impl WasmHost {
                 &manifest.author,
                 true,
                 serde_json::to_string(&manifest).ok(),
+                permissions_json,
                 now,
                 now,
             ],
@@ -344,8 +414,15 @@ impl WasmHost {
 
     fn persist_skill_files(&self, module: &WasmModule) -> Result<()> {
         let skill_path = self.get_skill_path(&module.manifest().id)?;
-        std::fs::create_dir_all(&skill_path)
-            .map_err(|e| AppError::Io(e.to_string()))?;
+        self.persist_skill_files_to_path(module, &skill_path)
+    }
+
+    pub fn persist_skill_files_to_path(
+        &self,
+        module: &WasmModule,
+        skill_path: &Path,
+    ) -> Result<()> {
+        std::fs::create_dir_all(skill_path).map_err(|e| AppError::Io(e.to_string()))?;
 
         let manifest_path = skill_path.join("manifest.json");
         let wasm_path = skill_path.join("skill.wasm");

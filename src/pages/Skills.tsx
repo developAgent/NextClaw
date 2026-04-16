@@ -1,6 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import { Plus, Database, Search, Trash2, ToggleRight, FileCode, Download } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { useState, useEffect, useRef } from "react";
+import {
+  Plus,
+  Database,
+  Search,
+  Trash2,
+  ToggleRight,
+  FileCode,
+  Download,
+  AlertCircle,
+} from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 
 type SkillPermission = {
   permission_type?: string;
@@ -33,59 +42,113 @@ interface InstalledSkill {
   enabled: boolean;
 }
 
+interface MarketplaceSkill {
+  slug: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  icon?: string | null;
+  available: boolean;
+  installed: boolean;
+  installed_at?: string | null;
+  installed_path?: string | null;
+}
+
 export default function Skills() {
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [marketplaceSkills, setMarketplaceSkills] = useState<
+    MarketplaceSkill[]
+  >([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showMarketplace, setShowMarketplace] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
-  const [manifestInput, setManifestInput] = useState('');
-  const [selectedManifest, setSelectedManifest] = useState<SkillManifest | null>(null);
+  const [manifestInput, setManifestInput] = useState("");
+  const [selectedManifest, setSelectedManifest] =
+    useState<SkillManifest | null>(null);
+  const [selectedWasmFile, setSelectedWasmFile] = useState<File | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const [pageFeedback, setPageFeedback] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadSkills();
+    void loadSkills();
   }, []);
+
+  useEffect(() => {
+    if (showMarketplace) {
+      void loadMarketplaceSkills(searchQuery);
+    }
+  }, [showMarketplace, searchQuery]);
 
   const loadSkills = async () => {
     try {
-      const data = await invoke<InstalledSkill[]>('wasm_list_skills');
+      const data = await invoke<InstalledSkill[]>("wasm_list_skills");
       const skillList = data.map(({ manifest, enabled }) => ({
         ...manifest,
         enabled,
       }));
       setSkills(skillList);
     } catch (error) {
-      console.error('Failed to load skills:', error);
+      console.error("Failed to load skills:", error);
+    }
+  };
+
+  const loadMarketplaceSkills = async (query = "") => {
+    try {
+      const data = await invoke<MarketplaceSkill[]>("search_marketplace", {
+        request: {
+          query,
+          limit: 20,
+        },
+      });
+      setMarketplaceSkills(data);
+      setPageFeedback(null);
+    } catch (error) {
+      console.error("Failed to load marketplace skills:", error);
+      setPageFeedback("Failed to load marketplace skills.");
+    }
+  };
+
+  const resetInstallState = () => {
+    setSelectedManifest(null);
+    setSelectedWasmFile(null);
+    setManifestInput("");
+    setInstallError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   const handleToggleSkill = async (skill: Skill) => {
     try {
       setLoading(true);
-      await invoke('wasm_set_skill_enabled', {
+      setPageFeedback(null);
+      await invoke("wasm_set_skill_enabled", {
         skillId: skill.id,
         enabled: !skill.enabled,
       });
       await loadSkills();
     } catch (error) {
-      console.error('Failed to toggle skill:', error);
-      alert('Failed to update skill state');
+      console.error("Failed to toggle skill:", error);
+      setPageFeedback("Failed to update skill state.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleUninstallSkill = async (id: string) => {
-    if (!confirm('Are you sure you want to uninstall this skill?')) return;
+    if (!confirm("Are you sure you want to uninstall this skill?")) return;
 
     try {
       setLoading(true);
-      await invoke('wasm_unregister_skill', { skillId: id });
+      setPageFeedback(null);
+      await invoke("wasm_unregister_skill", { skillId: id });
       await loadSkills();
     } catch (error) {
-      console.error('Failed to uninstall skill:', error);
-      alert('Failed to uninstall skill');
+      console.error("Failed to uninstall skill:", error);
+      setPageFeedback("Failed to uninstall skill.");
     } finally {
       setLoading(false);
     }
@@ -93,51 +156,106 @@ export default function Skills() {
 
   const handleInstallFromManifest = async () => {
     try {
-      const manifest = JSON.parse(manifestInput);
+      const manifest = JSON.parse(manifestInput) as SkillManifest;
       setSelectedManifest(manifest);
-      setShowInstallModal(false);
-      // Would typically prompt for WASM file here
-      alert('Manifest parsed. Please select the WASM file.');
+      setSelectedWasmFile(null);
+      setInstallError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch (error) {
-      alert('Invalid manifest JSON');
+      setInstallError("Invalid manifest JSON");
     }
   };
 
-  const handleSelectWasmFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelectWasmFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedWasmFile(file);
+    setInstallError(null);
+  };
+
+  const handleInstallSkill = async () => {
+    if (!selectedManifest) {
+      setInstallError("Paste a valid manifest first");
+      return;
+    }
+
+    if (!selectedWasmFile) {
+      setInstallError("Select a WASM file to continue");
+      return;
+    }
+
     try {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      // Read the WASM file and convert to base64
-      const wasmContent = await file.arrayBuffer();
-      const wasmBase64 = btoa(String.fromCharCode(...new Uint8Array(wasmContent)));
-
-      // Install the skill
       setLoading(true);
-      await invoke('wasm_register_skill', {
+      setInstallError(null);
+
+      const wasmContent = await selectedWasmFile.arrayBuffer();
+      const wasmBase64 = btoa(
+        String.fromCharCode(...new Uint8Array(wasmContent)),
+      );
+
+      await invoke("wasm_register_skill", {
         wasmBase64,
         manifestJson: JSON.stringify(selectedManifest),
         permissionsJson: JSON.stringify({ granted: [], denied: [] }),
       });
 
       await loadSkills();
-      setSelectedManifest(null);
       setShowInstallModal(false);
-      setManifestInput('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      resetInstallState();
     } catch (error) {
-      console.error('Failed to install skill:', error);
-      alert('Failed to install skill');
+      console.error("Failed to install skill:", error);
+      setInstallError("Failed to install skill");
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSkills = skills.filter(skill =>
-    skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    skill.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const handleInstallMarketplaceSkill = async (slug: string) => {
+    try {
+      setLoading(true);
+      setPageFeedback(null);
+      await invoke("install_skill", { slug });
+      await Promise.all([loadMarketplaceSkills(searchQuery), loadSkills()]);
+      setPageFeedback("Marketplace skill installed successfully.");
+    } catch (error) {
+      console.error("Failed to install marketplace skill:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error ?? "Unknown error");
+      setPageFeedback(`Failed to install marketplace skill: ${message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUninstallMarketplaceSkill = async (slug: string) => {
+    if (!confirm("Are you sure you want to uninstall this marketplace skill?"))
+      return;
+
+    try {
+      setLoading(true);
+      setPageFeedback(null);
+      await invoke("uninstall_skill", { slug });
+      await Promise.all([loadMarketplaceSkills(searchQuery), loadSkills()]);
+      setPageFeedback("Marketplace skill uninstalled successfully.");
+    } catch (error) {
+      console.error("Failed to uninstall marketplace skill:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error ?? "Unknown error");
+      setPageFeedback(`Failed to uninstall marketplace skill: ${message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSkills = skills.filter(
+    (skill) =>
+      skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      skill.description.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -148,15 +266,20 @@ export default function Skills() {
           <button
             onClick={() => setShowMarketplace(!showMarketplace)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              showMarketplace ? 'bg-zinc-700 hover:bg-zinc-600' : 'bg-blue-600 hover:bg-blue-700'
+              showMarketplace
+                ? "bg-zinc-700 hover:bg-zinc-600"
+                : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
             <Database className="w-4 h-4" />
-            {showMarketplace ? 'Installed' : 'Marketplace'}
+            {showMarketplace ? "Installed" : "Marketplace"}
           </button>
           {!showMarketplace && (
             <button
-              onClick={() => setShowInstallModal(true)}
+              onClick={() => {
+                resetInstallState();
+                setShowInstallModal(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -165,6 +288,18 @@ export default function Skills() {
           )}
         </div>
       </div>
+
+      {pageFeedback && (
+        <div
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            pageFeedback.startsWith("Failed")
+              ? "border border-red-500/30 bg-red-500/10 text-red-300"
+              : "border border-green-500/30 bg-green-500/10 text-green-300"
+          }`}
+        >
+          {pageFeedback}
+        </div>
+      )}
 
       {showMarketplace ? (
         <>
@@ -181,12 +316,100 @@ export default function Skills() {
             </div>
           </div>
 
-          <div className="text-center text-zinc-500 py-12">
-            <Database className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">Skill Marketplace</p>
-            <p className="text-sm">Browse and install community skills</p>
-            <p className="text-xs mt-2 text-zinc-600">Marketplace coming soon</p>
-          </div>
+          {marketplaceSkills.length === 0 ? (
+            <div className="text-center text-zinc-500 py-12">
+              <Database className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">No marketplace skills found</p>
+              <p className="text-sm">
+                Try a different search term or clear the filter
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {marketplaceSkills.map((skill) => {
+                const statusClass = skill.installed
+                  ? "bg-green-600/20 text-green-400"
+                  : skill.available
+                    ? "bg-blue-600/20 text-blue-300"
+                    : "bg-amber-600/20 text-amber-300";
+                const statusLabel = skill.installed
+                  ? "Installed"
+                  : skill.available
+                    ? "Ready to install"
+                    : "Artifact missing";
+                const canInstall =
+                  skill.available && !skill.installed && !loading;
+
+                return (
+                  <div
+                    key={skill.slug}
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg p-4"
+                  >
+                    <div className="flex items-start justify-between mb-2 gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg leading-none">
+                            {skill.icon ?? "📦"}
+                          </span>
+                          <h3 className="font-medium truncate">{skill.name}</h3>
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          v{skill.version} by {skill.author}
+                        </p>
+                      </div>
+                      <div
+                        className={`px-2 py-1 rounded text-xs ${statusClass}`}
+                      >
+                        {statusLabel}
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-zinc-400 mb-4">
+                      {skill.description}
+                    </p>
+
+                    {!skill.installed && !skill.available && (
+                      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          No local marketplace artifact was found for this
+                          skill.
+                        </span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() =>
+                        void (skill.installed
+                          ? handleUninstallMarketplaceSkill(skill.slug)
+                          : handleInstallMarketplaceSkill(skill.slug))
+                      }
+                      disabled={skill.installed ? loading : !canInstall}
+                      title={
+                        !skill.installed && !skill.available
+                          ? "This skill cannot be installed until a local artifact is added."
+                          : undefined
+                      }
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg transition-colors text-sm"
+                    >
+                      {skill.installed ? (
+                        <Trash2 className="w-4 h-4" />
+                      ) : skill.available ? (
+                        <Download className="w-4 h-4" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4" />
+                      )}
+                      {skill.installed
+                        ? "Uninstall"
+                        : skill.available
+                          ? "Install"
+                          : "Artifact unavailable"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -195,32 +418,48 @@ export default function Skills() {
               <div className="text-center">
                 <FileCode className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No skills installed</p>
-                <p className="text-sm">Install skills from WASM files or the marketplace</p>
+                <p className="text-sm">
+                  Install skills from WASM files or the marketplace
+                </p>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredSkills.map((skill) => (
-                <div key={skill.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <div
+                  key={skill.id}
+                  className="bg-zinc-900 border border-zinc-800 rounded-lg p-4"
+                >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <h3 className="font-medium">{skill.name}</h3>
-                      <p className="text-xs text-zinc-500">v{skill.version} by {skill.author}</p>
+                      <p className="text-xs text-zinc-500">
+                        v{skill.version} by {skill.author}
+                      </p>
                     </div>
-                    <div className={`px-2 py-1 rounded text-xs ${
-                      skill.enabled ? 'bg-green-600/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
-                    }`}>
-                      {skill.enabled ? 'Enabled' : 'Disabled'}
+                    <div
+                      className={`px-2 py-1 rounded text-xs ${
+                        skill.enabled
+                          ? "bg-green-600/20 text-green-400"
+                          : "bg-zinc-700 text-zinc-400"
+                      }`}
+                    >
+                      {skill.enabled ? "Enabled" : "Disabled"}
                     </div>
                   </div>
-                  <p className="text-sm text-zinc-400 mb-3">{skill.description}</p>
+                  <p className="text-sm text-zinc-400 mb-3">
+                    {skill.description}
+                  </p>
 
                   {skill.permissions.length > 0 && (
                     <div className="mb-3">
                       <p className="text-xs text-zinc-500 mb-1">Permissions:</p>
                       <div className="flex flex-wrap gap-1">
                         {skill.permissions.slice(0, 3).map((perm, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400">
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400"
+                          >
                             {perm.permission_type}
                           </span>
                         ))}
@@ -240,7 +479,7 @@ export default function Skills() {
                       className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 rounded-lg transition-colors text-sm"
                     >
                       <ToggleRight className="w-4 h-4" />
-                      {skill.enabled ? 'Disable' : 'Enable'}
+                      {skill.enabled ? "Disable" : "Enable"}
                     </button>
                     <button
                       onClick={() => void handleUninstallSkill(skill.id)}
@@ -258,7 +497,6 @@ export default function Skills() {
         </>
       )}
 
-      {/* Install Modal */}
       {showInstallModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 rounded-lg p-6 max-w-lg w-full">
@@ -272,7 +510,12 @@ export default function Skills() {
                   </label>
                   <textarea
                     value={manifestInput}
-                    onChange={(e) => setManifestInput(e.target.value)}
+                    onChange={(e) => {
+                      setManifestInput(e.target.value);
+                      if (installError) {
+                        setInstallError(null);
+                      }
+                    }}
                     placeholder='{
   "id": "com.example.my-skill",
   "name": "My Skill",
@@ -285,15 +528,23 @@ export default function Skills() {
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
                   />
                 </div>
+                {installError && (
+                  <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                    {installError}
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => setShowInstallModal(false)}
+                    onClick={() => {
+                      setShowInstallModal(false);
+                      resetInstallState();
+                    }}
                     className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleInstallFromManifest}
+                    onClick={() => void handleInstallFromManifest()}
                     disabled={!manifestInput.trim()}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
@@ -305,9 +556,12 @@ export default function Skills() {
               <>
                 <div className="bg-zinc-800 rounded-lg p-4 mb-4">
                   <h3 className="font-medium mb-2">{selectedManifest.name}</h3>
-                  <p className="text-sm text-zinc-400 mb-2">{selectedManifest.description}</p>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    {selectedManifest.description}
+                  </p>
                   <p className="text-xs text-zinc-500">
-                    Version: {selectedManifest.version} | Author: {selectedManifest.author}
+                    Version: {selectedManifest.version} | Author:{" "}
+                    {selectedManifest.author}
                   </p>
                 </div>
 
@@ -329,25 +583,47 @@ export default function Skills() {
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 border-2 border-dashed border-zinc-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Download className="w-4 h-4" />
-                    {loading ? 'Installing...' : 'Select WASM File'}
+                    {selectedWasmFile
+                      ? selectedWasmFile.name
+                      : "Select WASM File"}
                   </button>
                 </div>
+
+                {installError && (
+                  <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                    {installError}
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => {
                       setSelectedManifest(null);
-                      setManifestInput('');
+                      setSelectedWasmFile(null);
+                      setInstallError(null);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
                     }}
                     className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
                   >
                     Back
                   </button>
                   <button
-                    onClick={() => setShowInstallModal(false)}
+                    onClick={() => {
+                      setShowInstallModal(false);
+                      resetInstallState();
+                    }}
                     className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
                   >
                     Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleInstallSkill()}
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    {loading ? "Installing..." : "Install"}
                   </button>
                 </div>
               </>

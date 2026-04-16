@@ -4,12 +4,12 @@
 use crate::db::Database;
 use crate::utils::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use tauri::State;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::State;
+use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 
 /// Gateway status information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,7 +155,10 @@ impl GatewayManager {
                     let mut status = self.status.lock().await;
                     status.state = GatewayState::Error;
                 }
-                Err(AppError::Internal(format!("Failed to start gateway: {}", e)))
+                Err(AppError::Internal(format!(
+                    "Failed to start gateway: {}",
+                    e
+                )))
             }
         }
     }
@@ -346,9 +349,7 @@ impl Default for GatewayManager {
 
 /// Get gateway status
 #[tauri::command]
-pub async fn get_gateway_status(
-    manager: State<'_, Arc<GatewayManager>>,
-) -> Result<GatewayStatus> {
+pub async fn get_gateway_status(manager: State<'_, Arc<GatewayManager>>) -> Result<GatewayStatus> {
     Ok(manager.get_status().await)
 }
 
@@ -363,9 +364,7 @@ pub async fn start_gateway(
 
 /// Stop gateway
 #[tauri::command]
-pub async fn stop_gateway(
-    manager: State<'_, Arc<GatewayManager>>,
-) -> Result<()> {
+pub async fn stop_gateway(manager: State<'_, Arc<GatewayManager>>) -> Result<()> {
     manager.stop().await
 }
 
@@ -380,9 +379,7 @@ pub async fn restart_gateway(
 
 /// Check gateway health
 #[tauri::command]
-pub async fn check_gateway_health(
-    manager: State<'_, Arc<GatewayManager>>,
-) -> Result<bool> {
+pub async fn check_gateway_health(manager: State<'_, Arc<GatewayManager>>) -> Result<bool> {
     manager.check_health().await
 }
 
@@ -413,9 +410,7 @@ pub fn generate_new_token() -> String {
 
 /// Get control UI URL
 #[tauri::command]
-pub async fn get_control_ui_url(
-    manager: State<'_, Arc<GatewayManager>>,
-) -> Result<String> {
+pub async fn get_control_ui_url(manager: State<'_, Arc<GatewayManager>>) -> Result<String> {
     let status = manager.get_status().await;
     let token = manager.config.lock().await.token.clone();
 
@@ -423,7 +418,11 @@ pub async fn get_control_ui_url(
         return Err(AppError::Validation("Gateway is not running".to_string()));
     }
 
-    Ok(format!("http://127.0.0.1:{}/?token={}", status.port, token.unwrap_or_default()))
+    Ok(format!(
+        "http://127.0.0.1:{}/?token={}",
+        status.port,
+        token.unwrap_or_default()
+    ))
 }
 
 #[cfg(test)]

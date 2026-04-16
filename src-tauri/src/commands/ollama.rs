@@ -1,5 +1,5 @@
-use crate::ollama::{OllamaManager, OllamaChatRequest, OllamaMessage};
 use crate::ollama::models::MessageRole;
+use crate::ollama::{OllamaChatRequest, OllamaManager, OllamaMessage};
 use crate::utils::error::Result;
 use tauri::State;
 use tracing::info;
@@ -12,7 +12,9 @@ pub async fn ollama_check_connection(manager: State<'_, OllamaManager>) -> Resul
 
 /// List all available Ollama models
 #[tauri::command]
-pub async fn ollama_list_models(manager: State<'_, OllamaManager>) -> Result<Vec<crate::ollama::OllamaModel>> {
+pub async fn ollama_list_models(
+    manager: State<'_, OllamaManager>,
+) -> Result<Vec<crate::ollama::OllamaModel>> {
     Ok(manager.get_models().await)
 }
 

@@ -1,11 +1,14 @@
 //! Anthropic chat commands
 //! Provides Tauri commands for Anthropic Claude API
 
-use crate::providers::{AnthropicConfig, AnthropicProvider, AnthropicMessage, MessageCreateRequest, AnthropicMessageRole};
+use crate::providers::{
+    AnthropicConfig, AnthropicMessage, AnthropicMessageRole, AnthropicProvider,
+    MessageCreateRequest,
+};
 use crate::utils::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use tauri::State;
 use std::sync::Arc;
+use tauri::State;
 use tokio::sync::Mutex;
 
 /// Anthropic message creation request payload
@@ -67,13 +70,15 @@ pub async fn create_anthropic_message(
 ) -> Result<AnthropicMessageResponsePayload> {
     let provider = {
         let provider_guard = state.provider.lock().await;
-        provider_guard.as_ref()
+        provider_guard
+            .as_ref()
             .ok_or_else(|| AppError::Validation("Anthropic provider not configured".to_string()))?
             .clone()
     };
 
     // Convert payload to internal types
-    let messages: Vec<AnthropicMessage> = request.messages
+    let messages: Vec<AnthropicMessage> = request
+        .messages
         .into_iter()
         .map(|m| -> Result<AnthropicMessage> {
             Ok(AnthropicMessage {
@@ -102,15 +107,15 @@ pub async fn create_anthropic_message(
     }
 
     let response = tokio::task::spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async {
-            provider.create_message(message_request).await
-        })
+        tokio::runtime::Handle::current()
+            .block_on(async { provider.create_message(message_request).await })
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
 
     // Extract text content
-    let content = response.content
+    let content = response
+        .content
         .iter()
         .filter_map(|block| block.text.as_ref().cloned())
         .collect::<Vec<_>>()
@@ -137,15 +142,12 @@ pub async fn list_anthropic_models() -> Result<Vec<String>> {
 /// Validate Anthropic API key
 #[tauri::command]
 pub async fn validate_anthropic_api_key(api_key: String) -> Result<bool> {
-    let config = AnthropicConfig::new(api_key)
-        .with_model("claude-3-haiku-20240307");
+    let config = AnthropicConfig::new(api_key).with_model("claude-3-haiku-20240307");
 
     let provider = Arc::new(AnthropicProvider::new(config)?);
 
     let is_valid = tokio::task::spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async {
-            provider.validate_api_key().await
-        })
+        tokio::runtime::Handle::current().block_on(async { provider.validate_api_key().await })
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;

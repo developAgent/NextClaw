@@ -131,24 +131,6 @@ export interface TestResult {
   message: string;
 }
 
-// Update types
-export interface UpdateInfo {
-  version: string;
-  body: string;
-  date: string;
-}
-
-export interface DownloadProgress {
-  totalLength?: number;
-  currentLength?: number;
-  chunkLength: number;
-}
-
-export interface UpdateStatus {
-  isChecking: boolean;
-  isDownloading: boolean;
-}
-
 // Gateway types
 export interface GatewayStatus {
   running: boolean;

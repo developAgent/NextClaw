@@ -37,7 +37,9 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
 
 fn ensure_default_workspace(db: &Database) -> Result<()> {
     let existing_count = db.transaction(|conn| {
-        conn.query_row("SELECT COUNT(*) FROM workspaces", [], |row| row.get::<_, i64>(0))
+        conn.query_row("SELECT COUNT(*) FROM workspaces", [], |row| {
+            row.get::<_, i64>(0)
+        })
     })?;
 
     if existing_count > 0 {
@@ -53,7 +55,13 @@ fn ensure_default_workspace(db: &Database) -> Result<()> {
             INSERT INTO workspaces (id, name, description, created_at, updated_at)
             VALUES (?1, ?2, ?3, ?4, ?5)
             "#,
-            rusqlite::params![workspace_id, "Default Workspace", Option::<String>::None, now, now],
+            rusqlite::params![
+                workspace_id,
+                "Default Workspace",
+                Option::<String>::None,
+                now,
+                now
+            ],
         )?;
 
         conn.execute(
@@ -90,7 +98,10 @@ fn get_current_workspace_id(db: &Database) -> Result<Option<String>> {
     Ok(workspace_id)
 }
 
-fn map_workspace(row: &rusqlite::Row<'_>, current_workspace_id: Option<&str>) -> rusqlite::Result<WorkspaceDto> {
+fn map_workspace(
+    row: &rusqlite::Row<'_>,
+    current_workspace_id: Option<&str>,
+) -> rusqlite::Result<WorkspaceDto> {
     let id = row.get::<_, String>(0)?;
     Ok(WorkspaceDto {
         is_current: current_workspace_id.is_some_and(|current_id| current_id == id),
@@ -116,7 +127,9 @@ pub fn list_workspaces(db: State<'_, Database>) -> Result<Vec<WorkspaceDto>> {
             "#,
         )?;
 
-        let rows = stmt.query_map([], |row| map_workspace(row, current_workspace_id.as_deref()))?;
+        let rows = stmt.query_map([], |row| {
+            map_workspace(row, current_workspace_id.as_deref())
+        })?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
     })
 }
@@ -154,10 +167,15 @@ pub fn get_current_workspace(db: State<'_, Database>) -> Result<Option<Workspace
 }
 
 #[tauri::command]
-pub fn create_workspace(input: CreateWorkspaceInput, db: State<'_, Database>) -> Result<WorkspaceDto> {
+pub fn create_workspace(
+    input: CreateWorkspaceInput,
+    db: State<'_, Database>,
+) -> Result<WorkspaceDto> {
     let name = input.name.trim();
     if name.is_empty() {
-        return Err(AppError::Validation("Workspace name is required".to_string()));
+        return Err(AppError::Validation(
+            "Workspace name is required".to_string(),
+        ));
     }
 
     ensure_default_workspace(&db)?;
@@ -171,7 +189,9 @@ pub fn create_workspace(input: CreateWorkspaceInput, db: State<'_, Database>) ->
     })?;
 
     if existing > 0 {
-        return Err(AppError::Validation("A workspace with this name already exists".to_string()));
+        return Err(AppError::Validation(
+            "A workspace with this name already exists".to_string(),
+        ));
     }
 
     let now = chrono::Utc::now().to_rfc3339();
@@ -206,25 +226,32 @@ pub fn create_workspace(input: CreateWorkspaceInput, db: State<'_, Database>) ->
 }
 
 #[tauri::command]
-pub fn set_current_workspace(workspace_id: String, db: State<'_, Database>) -> Result<WorkspaceDto> {
+pub fn set_current_workspace(
+    workspace_id: String,
+    db: State<'_, Database>,
+) -> Result<WorkspaceDto> {
     ensure_default_workspace(&db)?;
 
-    let workspace = db.transaction(|conn| {
-        let mut stmt = conn.prepare(
-            r#"
+    let workspace = db
+        .transaction(|conn| {
+            let mut stmt = conn.prepare(
+                r#"
             SELECT id, name, description, created_at, updated_at
             FROM workspaces
             WHERE id = ?1
             "#,
-        )?;
+            )?;
 
-        stmt.query_row(rusqlite::params![&workspace_id], |row| map_workspace(row, Some(&workspace_id)))
-    }).map_err(|error| match error {
-        AppError::Database(message) if message.contains("Query returned no rows") => {
-            AppError::Validation("Workspace not found".to_string())
-        }
-        other => other,
-    })?;
+            stmt.query_row(rusqlite::params![&workspace_id], |row| {
+                map_workspace(row, Some(&workspace_id))
+            })
+        })
+        .map_err(|error| match error {
+            AppError::Database(message) if message.contains("Query returned no rows") => {
+                AppError::Validation("Workspace not found".to_string())
+            }
+            other => other,
+        })?;
 
     let now = chrono::Utc::now().to_rfc3339();
     db.transaction(|conn| {
