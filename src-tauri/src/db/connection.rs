@@ -595,6 +595,43 @@ impl Database {
         .map_err(|e| AppError::Database(format!("Failed to create workspaces index: {e}")))?;
 
         debug!("Database schema initialized successfully");
+        self.init_wizard_state()?;
+        Ok(())
+    }
+
+    /// Initialize setup wizard state table
+    /// Called at end of init_schema to create wizard state tracking
+    fn init_wizard_state(&self) -> Result<()> {
+        let conn = self.conn.blocking_lock();
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS setup_wizard_state (
+                id TEXT PRIMARY KEY DEFAULT 'wizard_state',
+                current_step INTEGER NOT NULL DEFAULT 1,
+                completed BOOLEAN NOT NULL DEFAULT FALSE,
+                language TEXT NOT NULL DEFAULT 'zh',
+                ai_provider TEXT,
+                api_key_encrypted TEXT,
+                api_key_provider TEXT,
+                workspace_name TEXT NOT NULL DEFAULT '默认工作区',
+                enabled_features TEXT NOT NULL DEFAULT '["chat","automation","cron","skills","hotkeys","workflow"]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to create setup_wizard_state table: {e}")))?;
+
+        // Insert default wizard state if not exists
+        conn.execute(
+            r#"
+            INSERT OR IGNORE INTO setup_wizard_state (id, current_step, completed) VALUES ('wizard_state', 1, FALSE)
+            "#,
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to insert default wizard state: {e}")))?;
+
         Ok(())
     }
 

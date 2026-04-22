@@ -92,6 +92,11 @@ evalexpr = "11.0"
 # Keychain storage
 keyring = "3.0"
 
+# Encryption
+aes-gcm = "0.10"
+hostname = "0.4"
+getrandom = "0.2"
+
 # i18n
 rust-i18n = "0.4"
 rust-embed = "8.0"

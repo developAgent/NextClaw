@@ -210,13 +210,30 @@
         }
       },
       "verification": {
-        "title": "製品シェルを開く準備ができました",
-        "description": "初回設定の内容が保存されました。次は Installer ページでローカルランタイムを起動するのがおすすめです。",
+        "title": "ダッシュボードを開く準備ができました",
+        "description": "初回設定の内容が保存されました。完了をクリックしてメイン画面に入ります。",
         "languageSet": "言語は {{language}} に設定されました",
-        "providerDeferred": "プロバイダー設定は完全な Settings と Channels ページに後回しされました",
-        "skillsSelected": "{{count}} 個のスキルバンドルを選択済み",
-        "noSkillsSelected": "まだスキルバンドルが選択されていません"
+        "providerSet": "AI プロバイダー",
+        "providerDeferred": "プロバイダー設定は後回しされました（オフラインモード）",
+        "workspaceSet": "ワークスペース",
+        "featuresSelected": "{{count}} 個の機能を選択済み",
+        "noFeaturesSelected": "まだ機能が選択されていません"
       }
     }
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "recentUsage": "最近使用",
+    "viewAll": "すべて表示",
+    "workspace": "ワークスペース",
+    "switch": "切り替え"
+  },
+  "features": {
+    "chat": "AI チャット",
+    "automation": "自動化",
+    "cron": "スケジュールタスク",
+    "skills": "スキルマーケットプレイス",
+    "hotkeys": "ホットキー",
+    "workflow": "ワークフロー"
   }
 }

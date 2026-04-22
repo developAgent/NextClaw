@@ -8,6 +8,7 @@ import {
   FolderKanban,
   GitBranch,
   HardDriveDownload,
+  Home,
   Keyboard,
   Link2,
   Logs,
@@ -28,6 +29,7 @@ import LogsPage from '@/pages/Logs';
 import Workflows from '@/pages/Workflows';
 import Workspaces from '@/pages/Workspaces';
 import SetupWizard from '@/pages/Setup/SetupWizard';
+import Dashboard from '@/pages/Dashboard';
 
 type AppSection =
   | 'chat'
@@ -42,7 +44,8 @@ type AppSection =
   | 'workspaces'
   | 'logs'
   | 'installer'
-  | 'settings';
+  | 'settings'
+  | 'dashboard';
 
 const SETUP_STORAGE_KEY = 'nextclaw.setup.completed';
 
@@ -54,6 +57,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Feature overview and quick access',
+    icon: Home,
+  },
   {
     id: 'chat',
     label: 'Chat',
@@ -163,7 +172,7 @@ export default function App() {
 
   const handleSetupComplete = () => {
     setSetupComplete(true);
-    setActiveSection('installer');
+    setActiveSection('dashboard');
   };
 
   const renderContent = () => {
@@ -194,6 +203,8 @@ export default function App() {
         return <Installer />;
       case 'settings':
         return <Settings />;
+      case 'dashboard':
+        return <Dashboard onNavigate={setActiveSection} />;
       default:
         return <Chat />;
     }
@@ -207,7 +218,10 @@ export default function App() {
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       <aside className="flex w-72 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/95">
         <div className="border-b border-zinc-800 px-5 py-5">
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveSection('dashboard')}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/15 text-blue-400">
               <Sparkles className="h-5 w-5" />
             </div>
@@ -215,7 +229,7 @@ export default function App() {
               <h1 className="text-lg font-semibold tracking-tight">NextClaw</h1>
               <p className="text-xs text-zinc-500">ClawX-compatible desktop runtime</p>
             </div>
-          </div>
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">

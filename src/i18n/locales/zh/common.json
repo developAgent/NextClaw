@@ -186,10 +186,25 @@
       },
       "provider": {
         "title": "配置 AI 提供商",
-        "description": "稍后可在 Channels 或 Settings 中添加主要提供商。本步骤保持启动流程轻量。",
+        "description": "选择 AI 服务提供商，支持本地模型或云端 API。",
         "preferredLabel": "首选提供商",
         "preferredValue": "首次使用推荐 Anthropic Claude。",
-        "helper": "完成引导后，可在主界面中安全配置 Provider 密钥和账户绑定。"
+        "helper": "完成引导后，可在主界面中安全配置 Provider 密钥和账户绑定。",
+        "keySecurity": "密钥将安全存储在你的设备上",
+        "skip": "跳过（离线模式）",
+        "skipDescription": "暂不配置 AI，稍后在设置中添加"
+      },
+      "workspace": {
+        "title": "设置工作区",
+        "description": "工作区帮助你隔离不同的项目和环境。",
+        "customLabel": "自定义工作区名称",
+        "placeholder": "输入工作区名称"
+      },
+      "features": {
+        "title": "选择功能",
+        "description": "选择你想在仪表盘上显示的功能入口。",
+        "selectAll": "全选",
+        "deselectAll": "取消全选"
       },
       "skills": {
         "title": "选择技能包",
@@ -210,13 +225,30 @@
         }
       },
       "verification": {
-        "title": "准备打开产品主界面",
-        "description": "你的首次运行偏好已记录。下一步建议前往 Installer 页面启动本地运行时。",
+        "title": "准备打开仪表盘",
+        "description": "你的首次运行偏好已记录。点击完成进入主界面。",
         "languageSet": "语言已设置为 {{language}}",
-        "providerDeferred": "提供商设置已延后到完整的 Settings 和 Channels 页面",
-        "skillsSelected": "已选择 {{count}} 个技能包",
-        "noSkillsSelected": "尚未选择技能包"
+        "providerSet": "AI 提供商",
+        "providerDeferred": "提供商设置已延后（离线模式）",
+        "workspaceSet": "工作区",
+        "featuresSelected": "已选择 {{count}} 个功能",
+        "noFeaturesSelected": "尚未选择任何功能"
       }
     }
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "recentUsage": "最近使用",
+    "viewAll": "查看全部",
+    "workspace": "工作区",
+    "switch": "切换"
+  },
+  "features": {
+    "chat": "AI 对话",
+    "automation": "自动化录制",
+    "cron": "定时任务",
+    "skills": "技能市场",
+    "hotkeys": "热键管理",
+    "workflow": "工作流"
   }
 }

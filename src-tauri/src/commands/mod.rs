@@ -18,4 +18,5 @@ pub mod recorder;
 pub mod settings;
 pub mod wasm;
 pub mod workflow;
+pub mod wizard;
 pub mod workspace;

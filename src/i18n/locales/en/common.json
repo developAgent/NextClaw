@@ -186,10 +186,25 @@
       },
       "provider": {
         "title": "Configure AI Provider",
-        "description": "Add your primary provider later in Channels or Settings. This step keeps the launch flow lightweight.",
+        "description": "Choose an AI service provider, supporting local models or cloud APIs.",
         "preferredLabel": "Preferred provider",
         "preferredValue": "Anthropic Claude is recommended for first-run setup.",
-        "helper": "Provider keys and account bindings can be configured safely after onboarding from the main shell."
+        "helper": "Provider keys and account bindings can be configured safely after onboarding from the main shell.",
+        "keySecurity": "Keys are securely stored on your device",
+        "skip": "Skip (offline mode)",
+        "skipDescription": "Configure AI later in settings"
+      },
+      "workspace": {
+        "title": "Setup Workspace",
+        "description": "Workspaces help you isolate different projects and environments.",
+        "customLabel": "Custom workspace name",
+        "placeholder": "Enter workspace name"
+      },
+      "features": {
+        "title": "Select Features",
+        "description": "Choose which feature shortcuts to show on your dashboard.",
+        "selectAll": "Select All",
+        "deselectAll": "Deselect All"
       },
       "skills": {
         "title": "Select Skill Bundles",
@@ -210,13 +225,30 @@
         }
       },
       "verification": {
-        "title": "Ready to Open the Product Shell",
-        "description": "Your first-run preferences are captured. The next recommended stop is the Installer page to start the local runtime.",
+        "title": "Ready to Open Dashboard",
+        "description": "Your first-run preferences are captured. Click complete to enter the main interface.",
         "languageSet": "Language set to {{language}}",
-        "providerDeferred": "Provider setup deferred to the full Settings and Channels pages",
-        "skillsSelected": "{{count}} skill bundle(s) selected",
-        "noSkillsSelected": "No skill bundles selected yet"
+        "providerSet": "AI Provider",
+        "providerDeferred": "Provider setup deferred (offline mode)",
+        "workspaceSet": "Workspace",
+        "featuresSelected": "{{count}} feature(s) selected",
+        "noFeaturesSelected": "No features selected yet"
       }
     }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "recentUsage": "Recent Usage",
+    "viewAll": "View All",
+    "workspace": "Workspace",
+    "switch": "Switch"
+  },
+  "features": {
+    "chat": "AI Chat",
+    "automation": "Automation",
+    "cron": "Scheduled Tasks",
+    "skills": "Skill Marketplace",
+    "hotkeys": "Hotkeys",
+    "workflow": "Workflow"
   }
 }

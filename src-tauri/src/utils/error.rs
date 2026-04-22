@@ -27,6 +27,10 @@ pub enum AppError {
     #[error("Security error: {0}")]
     Security(String),
 
+    /// Encryption error
+    #[error("Encryption error: {0}")]
+    Encryption(String),
+
     /// File operation error
     #[error("File operation error: {0}")]
     File(String),
@@ -89,6 +93,7 @@ impl AppError {
             Self::Ai(_) => "ai",
             Self::Execution(_) => "execution",
             Self::Security(_) => "security",
+            Self::Encryption(_) => "encryption",
             Self::File(_) => "file",
             Self::Database(_) => "database",
             Self::Config(_) => "config",

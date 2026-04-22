@@ -9,6 +9,7 @@ mod cron;
 mod db;
 mod exec;
 mod hotkeys;
+mod security;
 mod ollama;
 mod providers;
 mod recorder;
@@ -28,7 +29,7 @@ use commands::{
     cron as cron_commands, developer, gateway as gateway_commands, hotkey as hotkey_commands,
     marketplace as marketplace_commands, ollama as ollama_commands, plugin,
     proxy as proxy_commands, recorder as recorder_commands, settings, wasm,
-    workflow as workflow_commands, workspace,
+    workflow as workflow_commands, wizard as wizard_commands, workspace,
 };
 use cron::CronScheduler;
 use db::connection::Database;
@@ -221,6 +222,11 @@ pub fn run() {
             ollama_commands::ollama_chat,
             ollama_commands::ollama_generate,
             ollama_commands::ollama_embed,
+            wizard_commands::wizard_get_state,
+            wizard_commands::wizard_save_state,
+            wizard_commands::wizard_complete,
+            wizard_commands::wizard_save_api_key,
+            wizard_commands::wizard_reset,
         ])
         .setup(move |app| {
             hotkey_registry.set_app_handle(app.handle().clone());

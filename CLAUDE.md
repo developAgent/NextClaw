@@ -2,6 +2,56 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 语言
+
+- **使用中文进行所有沟通** — 回复、代码注释、文档均使用中文
+- 代码中的标识符（变量名、函数名）使用英文，注释和文档使用中文
+- 提交信息使用中文描述改动内容
+
+## Behavioral Guidelines
+
+### Think Before Coding
+- **Consequences come before implementation** — analyze what a change will break before writing code
+- Understand the full scope of a change: what depends on this code, what depends on me, what will this break
+- Read existing code in the relevant files before making changes
+- Verify existing behavior through code reading, not assumptions
+- When unsure how something works, research it first rather than guessing
+
+### Verify Before Acting
+- Read the actual current state of files you plan to edit
+- Run `git diff` or `git status` before committing to understand what changed
+- Check that your edit is unique and correct — do not use replace_all blindly
+- Confirm destructive operations (delete, reset, force-push) are truly intended
+
+### When Stuck
+- Diagnose root cause before switching tactics
+- Read error messages fully, don't skip stack traces
+- Check if the issue was already solved in recent commits
+- Ask clarifying questions rather than proceeding on assumptions
+
+### Scope Control
+- Don't refactor adjacent code while fixing bugs
+- Don't add features beyond what was asked
+- Don't make speculative improvements or abstractions
+- Keep changes minimal and focused
+
+### Rust Safety
+- `#![forbid(unsafe_code)]` is enforced — never use unsafe without explicit architecture approval
+- Use `tracing` for all logging, never `println!`
+- All errors go through `utils/error.rs::AppError`
+- Never serialize or log `SecretString` directly
+
+### TypeScript Safety
+- No `any` types — use `unknown` instead
+- Strict mode required
+- Handle all error states, not just happy paths
+
+### Security
+- API keys via `secrecy::SecretString`, never in plain text or logs
+- Validate all user input via `exec/security.rs`
+- Path operations need traversal prevention
+- Use parameterized queries only (no string concatenation for SQL)
+
 ## Project Overview
 
 CEOClaw (NextClaw) 是一个跨平台桌面应用程序，结合了 AI 助手和自动化功能。使用 Rust (Tauri 2.0) 和 React/TypeScript 构建，支持：

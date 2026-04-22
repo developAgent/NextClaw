@@ -62,6 +62,11 @@ evalexpr.workspace = true
 # Keychain storage
 keyring.workspace = true
 
+# Encryption
+aes-gcm.workspace = true
+hostname.workspace = true
+getrandom.workspace = true
+
 # i18n
 rust-i18n.workspace = true
 rust-embed.workspace = true
